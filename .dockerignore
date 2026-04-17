@@ -1,0 +1,37 @@
+.git
+.gitignore
+.gitattributes
+
+# Python
+.venv
+venv/
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.coverage
+htmlcov/
+
+# Frontend build artifacts
+frontend/node_modules
+frontend/dist
+
+# Project docs & tests (not needed inside the image)
+docs/
+tests/
+*.md
+!README.md
+
+# Runtime artifacts
+artifacts/
+postgres_data/
+
+# Env files
+.env
+.env.local
+.env.production
+
+# IDE
+.idea/
+.vscode/
