@@ -209,8 +209,6 @@ Por cada fila extraída del portal se guarda en la tabla `records`:
 
 ## 11. Robustez del bot
 
-Cumplimiento explícito de las consideraciones obligatorias del PDF (§4):
-
 - **Esperas explícitas, no `sleep`.** Todas las esperas usan `WebDriverWait + expected_conditions` en `app/rpa/waits.py`: `wait_present`, `wait_visible`, `wait_clickable`, `wait_not_disabled`, `wait_select_populated`, `wait_overlay_gone`. No hay `time.sleep` como mecanismo primario.
 - **Validación del cambio de tabla.** Tras click en **Buscar**, `extract_rows` espera a que desaparezca el overlay `blockUI` **y** a que aparezca el `tbody` — la tabla se renderiza dinámicamente solo tras la primera búsqueda, por lo que validamos presencia real y no solo ausencia de overlay.
 - **Timeouts controlados.** `SELENIUM_TIMEOUT` (env, default 30s) aplica globalmente; cada helper acepta override por paso. El timeout levanta `TimeoutException`, capturada por el orquestador.
