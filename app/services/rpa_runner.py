@@ -33,13 +33,49 @@ async def run(job_id: int) -> None:
         limit = job.limit
 
         logger.info(f"job_id={job_id} step=start")
-        await job_service.mark_running(db, job_id)
 
         stats: dict = {"retries": 0}
-        try:
-            rows = await asyncio.to_thread(
-                bot.run, job_id, fecha_inicial, fecha_final, limit, stats
+        loop = asyncio.get_running_loop()
+        session_started = asyncio.Event()
+
+        def _on_session_started() -> None:
+            loop.call_soon_threadsafe(session_started.set)
+
+        bot_task = asyncio.create_task(
+            asyncio.to_thread(
+                bot.run,
+                job_id,
+                fecha_inicial,
+                fecha_final,
+                limit,
+                stats,
+                _on_session_started,
             )
+        )
+        wait_started_task = asyncio.create_task(session_started.wait())
+        running_marked = False
+
+        await asyncio.wait(
+            {bot_task, wait_started_task},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        # Keep queued while waiting for a Selenium slot; move to running only
+        # after a webdriver session is actually started.
+        if session_started.is_set():
+            await job_service.mark_running(db, job_id)
+            running_marked = True
+
+        if not bot_task.done() and not running_marked:
+            await wait_started_task
+            await job_service.mark_running(db, job_id)
+            running_marked = True
+
+        if not wait_started_task.done():
+            wait_started_task.cancel()
+
+        try:
+            rows = await bot_task
         except BotError as exc:
             logger.error(f"job_id={job_id} step={exc.step} error={exc.message}")
             await job_service.set_retries_count(db, job_id, stats.get("retries", 0))

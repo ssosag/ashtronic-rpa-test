@@ -1,6 +1,7 @@
 """Unit tests for rpa/waits.py using mock WebDriver objects."""
 from unittest.mock import MagicMock
 
+import pytest
 from selenium.common.exceptions import TimeoutException
 
 from app.rpa import waits
@@ -32,10 +33,10 @@ def test_wait_overlay_gone_returns_when_overlay_hidden():
     waits.wait_overlay_gone(driver, timeout=1)
 
 
-def test_wait_overlay_gone_swallows_timeout_when_overlay_visible(caplog):
+def test_wait_overlay_gone_raises_timeout_when_overlay_visible():
     driver = _mk_driver({".blockUI": [_mk_el(True)]})
-    waits.wait_overlay_gone(driver, timeout=1)
-    assert "wait_overlay_gone timed out" in caplog.text
+    with pytest.raises(TimeoutException):
+        waits.wait_overlay_gone(driver, timeout=1)
 
 
 def test_wait_overlay_gone_raises_for_non_timeout_errors():

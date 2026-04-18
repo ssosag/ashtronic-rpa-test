@@ -11,7 +11,7 @@ retrying is wasteful.
 import logging
 from datetime import datetime, timezone, date
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.remote.webdriver import WebDriver
 from app.core.config import get_settings
@@ -42,6 +42,7 @@ def run(
     fecha_final: date,
     limit: int,
     stats: Optional[dict] = None,
+    on_session_started: Optional[Callable[[], None]] = None,
 ) -> list[dict]:
     """Run the full extraction pipeline. Returns a list of record dicts.
     Raises BotError on failure (after attempting to save a screenshot).
@@ -49,6 +50,9 @@ def run(
     If `stats` is provided, it is mutated with `retries` (int) — the number of
     transient retries that occurred across all retried steps. The caller reads
     this after `run()` returns OR raises, to persist it on the Job row.
+
+    If `on_session_started` is provided, it is called once the webdriver
+    session is successfully created.
     """
     settings = get_settings()
     attempts = settings.bot_retry_attempts
@@ -62,6 +66,13 @@ def run(
     logger.info(f"job_id={job_id} bot=start")
     try:
         driver = create_driver()
+        if on_session_started is not None:
+            try:
+                on_session_started()
+            except Exception as exc:
+                logger.warning(
+                    f"job_id={job_id} on_session_started callback failed: {exc}"
+                )
 
         retry(
             lambda: login_step.login(driver),

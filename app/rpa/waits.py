@@ -7,14 +7,23 @@ from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 
+_MIN_DEFAULT_TIMEOUT_SECONDS = 5
+_MAX_DEFAULT_TIMEOUT_SECONDS = 300
+
+
 def _timeout(override: Optional[int]) -> int:
-    return override if override is not None else get_settings().selenium_timeout
+    if override is not None:
+        return max(1, override)
+
+    configured = get_settings().selenium_timeout
+    return max(
+        _MIN_DEFAULT_TIMEOUT_SECONDS, min(_MAX_DEFAULT_TIMEOUT_SECONDS, configured)
+    )
 
 
 def wait_present(driver: WebDriver, by: str, selector: str, timeout: Optional[int] = None) -> WebElement:
@@ -75,7 +84,4 @@ def wait_overlay_gone(driver: WebDriver, timeout: Optional[int] = None) -> None:
                 if el.is_displayed():
                     return False
         return True
-    try:
-        WebDriverWait(driver, _timeout(timeout)).until(_all_gone)
-    except TimeoutException:
-        logger.warning("wait_overlay_gone timed out — continuing anyway")
+    WebDriverWait(driver, _timeout(timeout)).until(_all_gone)

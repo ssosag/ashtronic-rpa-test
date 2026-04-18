@@ -105,7 +105,7 @@ def extract_rows(driver: WebDriver, limit: int) -> list[dict]:
 
         # Portal can take a long time for wide date ranges — give the overlay
         # extra room before declaring a timeout.
-        long_timeout = max(get_settings().selenium_timeout * 3, 90)
+        long_timeout = max(min(get_settings().selenium_timeout * 3, 180), 90)
 
         logger.info(f"step=extract action=wait_overlay_gone timeout={long_timeout}s")
         waits.wait_overlay_gone(driver, timeout=long_timeout)
