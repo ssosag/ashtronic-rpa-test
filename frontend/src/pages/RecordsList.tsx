@@ -116,6 +116,7 @@ export function RecordsList() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
+                  <Th>ID</Th>
                   <Th>Job</Th>
                   <Th>No. Orden</Th>
                   <Th>Documento</Th>
@@ -128,6 +129,14 @@ export function RecordsList() {
               <tbody className="divide-y divide-gray-100">
                 {records.map((r) => (
                   <tr key={r.id} className="hover:bg-gray-50">
+                    <Td>
+                      <Link
+                        to={`/records/${r.id}`}
+                        className="text-brand hover:underline font-mono"
+                      >
+                        #{r.id}
+                      </Link>
+                    </Td>
                     <Td>
                       <Link
                         to={`/jobs/${r.job_id}`}

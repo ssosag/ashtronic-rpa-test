@@ -15,6 +15,10 @@ class LoginError(BotError):
         super().__init__(message, step="login")
 
 
+class InvalidCredentialsError(LoginError):
+    """Structural login failure — not retryable (portal reached /login still after submit)."""
+
+
 class NavigationError(BotError):
     def __init__(self, message: str):
         super().__init__(message, step="navigate")

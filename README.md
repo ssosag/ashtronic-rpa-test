@@ -85,8 +85,11 @@ Copiar `.env.example` a `.env` y completar credenciales. **Ningún secreto vive 
 | `DATABASE_URL` | DSN async para SQLAlchemy | `postgresql+asyncpg://ashtronic:ashtronic@db:5432/ashtronic_rpa` |
 | `SELENIUM_HUB_URL` | Endpoint WebDriver remoto | `http://selenium:4444/wd/hub` |
 | `SELENIUM_TIMEOUT` | Timeout global de esperas (s) | `30` |
+| `BOT_RETRY_ATTEMPTS` | Intentos totales en login/extract (1 = sin retry) | `3` |
+| `BOT_RETRY_BACKOFF_SECONDS` | Backoff base para reintentos transitorios | `2.0` |
 | `SCREENSHOTS_DIR` | Carpeta de screenshots en error | `/app/artifacts/screenshots` |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
+| `LOG_JSON` | Si `true`, emite logs JSON con `request_id` incluido | `false` |
 
 ## 6. Cómo levantar la solución
 
@@ -201,9 +204,9 @@ Cumplimiento explícito de las consideraciones obligatorias del PDF (§4):
 - **Validación del cambio de tabla.** Tras click en **Buscar**, `extract_rows` espera a que desaparezca el overlay `blockUI` **y** a que aparezca el `tbody` — la tabla se renderiza dinámicamente solo tras la primera búsqueda, por lo que validamos presencia real y no solo ausencia de overlay.
 - **Timeouts controlados.** `SELENIUM_TIMEOUT` (env, default 30s) aplica globalmente; cada helper acepta override por paso. El timeout levanta `TimeoutException`, capturada por el orquestador.
 - **Manejo de errores.** `app/rpa/errors.py` define excepciones por fase (`LoginError`, `NavigationError`, `ExtractionError`). El runner captura, hace `logger.exception` (incluye traceback), guarda screenshot en `SCREENSHOTS_DIR` y marca el job como `error` con el mensaje.
-- **Logs trazables.** Cada paso loggea con un formato consistente: `step=<fase> action=<acción>`; ej. `step=extract action=click_buscar`, `step=filters action=select_convenio value=...`. Permite grep por fase o por acción.
+- **Logs trazables.** Cada paso loggea con un formato consistente: `step=<fase> action=<acción>`; ej. `step=extract action=click_buscar`, `step=filters action=select_convenio value=...`. Permite grep por fase o por acción. Con `LOG_JSON=true` los logs salen en JSON por línea e incluyen un `request_id` propagado vía middleware (se puede forzar vía header `X-Request-ID`) — listo para enviar a Datadog / CloudWatch / Loki.
 - **Selectores estables.** Ids (`#detalle_consulta`, `#btn-buscar`) cuando existen; de lo contrario, clases semánticas (`.blockUI`, `.dataTables_processing`). Los selectores viven centralizados por paso, no dispersos.
-- **Reintentos.** No hay reintento automático a nivel de fila porque la mayoría de errores son estructurales (login inválido, portal caído, cambio de DOM) y reintentar no ayuda. Un reintento controlado del job completo sería el siguiente paso (§12.5).
+- **Reintentos controlados.** Los pasos `login` y `extract` se reintentan con backoff exponencial (`app/rpa/retry.py`) ante errores transitorios (`TimeoutException`, `WebDriverException`) — útil cuando el portal responde lento o el overlay `blockUI` se queda un momento pegado. Los errores estructurales **no** se reintentan: `InvalidCredentialsError` (el portal rechaza credenciales) aborta inmediatamente, porque reintentar es desperdicio. Configurable vía `BOT_RETRY_ATTEMPTS` (default 3) y `BOT_RETRY_BACKOFF_SECONDS` (default 2.0).
 
 ## 12. Checklist de verificación en local
 

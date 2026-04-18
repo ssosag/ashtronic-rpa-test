@@ -153,6 +153,7 @@ export function JobDetail() {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-600">
                     <tr>
+                      <Th>ID</Th>
                       <Th>No. Orden</Th>
                       <Th>Documento</Th>
                       <Th>Nombre</Th>
@@ -164,6 +165,14 @@ export function JobDetail() {
                   <tbody className="divide-y divide-gray-100">
                     {records.map((r) => (
                       <tr key={r.id} className="hover:bg-gray-50">
+                        <Td>
+                          <Link
+                            to={`/records/${r.id}`}
+                            className="text-brand hover:underline font-mono"
+                          >
+                            #{r.id}
+                          </Link>
+                        </Td>
                         <Td className="font-mono">{r.external_row_id ?? "—"}</Td>
                         <Td>{r.patient_document ?? "—"}</Td>
                         <Td>{r.patient_name ?? "—"}</Td>

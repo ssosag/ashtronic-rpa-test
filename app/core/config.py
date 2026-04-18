@@ -22,8 +22,14 @@ class Settings(BaseSettings):
     selenium_hub_url: str = "http://selenium:4444/wd/hub"
     selenium_timeout: int = 30
 
+    # Bot retries for transient failures (portal slow, flaky overlay…).
+    # Total calls = bot_retry_attempts (1 = no retry, 3 = up to 2 retries).
+    bot_retry_attempts: int = 3
+    bot_retry_backoff_seconds: float = 2.0
+
     # App
     log_level: str = "INFO"
+    log_json: bool = False
     screenshots_dir: str = "/app/artifacts/screenshots"
 
     @model_validator(mode="after")

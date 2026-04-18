@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.core.middleware import RequestIdMiddleware
 from app.db import models as _models  # noqa: F401 — registers models with Base.metadata
 from app.db.database import async_session, init_db, close_db
 from app.services import job_service
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, json_output=settings.log_json)
     logger.info("app_event=startup")
     await init_db()
     logger.info("database=initialized")
@@ -34,6 +35,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
