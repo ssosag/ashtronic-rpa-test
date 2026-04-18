@@ -45,7 +45,7 @@ class Record(Base):
     external_row_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     patient_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     patient_document: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    date_service: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    date_service: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     sede: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     contrato: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     raw_row_json: Mapped[dict] = mapped_column(JSON, nullable=False)
