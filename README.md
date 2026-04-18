@@ -85,11 +85,11 @@ Copiar `.env.example` a `.env` y completar credenciales. **Ningún secreto vive 
 | `DATABASE_URL` | DSN async para SQLAlchemy | `postgresql+asyncpg://ashtronic:ashtronic@db:5432/ashtronic_rpa` |
 | `SELENIUM_HUB_URL` | Endpoint WebDriver remoto | `http://selenium:4444/wd/hub` |
 | `SELENIUM_TIMEOUT` | Timeout global de esperas (s) | `30` |
+| `SELENIUM_MAX_SESSIONS` | Sesiones maximas de Selenium | `3` |
 | `BOT_RETRY_ATTEMPTS` | Intentos totales en login/extract (1 = sin retry) | `3` |
 | `BOT_RETRY_BACKOFF_SECONDS` | Backoff base para reintentos transitorios | `2.0` |
 | `SCREENSHOTS_DIR` | Carpeta de screenshots en error | `/app/artifacts/screenshots` |
 | `LOG_LEVEL` | Nivel de logging | `INFO` |
-| `LOG_JSON` | Si `true`, emite logs JSON con `request_id` incluido | `false` |
 
 ## 6. Cómo levantar la solución
 
