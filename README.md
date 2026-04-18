@@ -229,13 +229,18 @@ pytest
 
 Cubre: validación de schemas, endpoints (`/rpa/extract`, `/jobs`, `/records`), `job_service` (`recover_orphan_jobs`, filtros), helpers de esperas (`wait_overlay_gone` con mocks).
 
-Frontend (vitest):
+Frontend (vitest + @testing-library/react, jsdom):
 
 ```bash
 cd frontend && npm install && npm test
 ```
 
-Cubre la serialización CSV (escape de comas/comillas/newlines, null/undefined).
+Cubre:
+- `lib/csv.ts` — escape de comas/comillas/newlines, null/undefined, header.
+- `components/StatusBadge` — labels en español por cada estado.
+- `pages/NewExtraction` — validación (limit=0, rango invertido), submit exitoso + navegación.
+- `pages/JobsList` — loading / empty / render de filas / error del API.
+- `pages/RecordDetail` — campos normalizados + `raw_row_json` pretty-printed.
 
 CI: `.github/workflows/ci.yml` ejecuta ambos en cada push/PR, más `eslint`, `prettier --check` y `vite build`.
 

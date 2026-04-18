@@ -10,7 +10,7 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 - [D02 · Base de datos: PostgreSQL 16 con asyncpg](#d02--base-de-datos-postgresql-16-con-asyncpg)
 - [D03 · Migraciones: `SQLAlchemy.create_all` en el startup (sin Alembic)](#d03--migraciones-sqlalchemycreate_all-en-el-startup-sin-alembic)
 - [D04 · Sin autenticación en la API](#d04--sin-autenticación-en-la-api)
-- [D05 · Logging plano en Fase 1, estructurado JSON en Fase 9 (bonus)](#d05--logging-plano-en-fase-1-estructurado-json-en-fase-9-bonus)
+- [D05 · Logging plano por defecto, JSON + `request_id` opt-in](#d05--logging-plano-por-defecto-json--request_id-opt-in)
 - [D06 · Bonus UX incluidos desde el inicio en el frontend](#d06--bonus-ux-incluidos-desde-el-inicio-en-el-frontend)
 - [D07 · Solo `requirements.txt` (sin `pyproject.toml`)](#d07--solo-requirementstxt-sin-pyprojecttoml)
 - [D08 · Tests en Fase 7, no antes](#d08--tests-en-fase-7-no-antes)
@@ -23,6 +23,7 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 - [D15 · Esperas explícitas + validación de cambio de tabla](#d15--esperas-explícitas--validación-de-cambio-de-tabla)
 - [D16 · Screenshots automáticos en errores del bot](#d16--screenshots-automáticos-en-errores-del-bot)
 - [D17 · Conventional Commits](#d17--conventional-commits)
+- [D18 · Reintentos controlados en el bot con whitelist de excepciones](#d18--reintentos-controlados-en-el-bot-con-whitelist-de-excepciones)
 - [Análisis técnico (preguntas obligatorias del enunciado)](#análisis-técnico-preguntas-obligatorias-del-enunciado)
 
 ---
@@ -88,16 +89,24 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 
 ---
 
-## D05 · Logging plano en Fase 1, estructurado JSON en Fase 9 (bonus)
+## D05 · Logging plano por defecto, JSON + `request_id` opt-in
 
-**Qué:** logging con `logging.basicConfig` estándar. Una eventual mejora a formato JSON con `request_id` y contexto por paso del bot queda como bonus de observabilidad.
+**Qué:** dos modos de logging seleccionables vía `LOG_JSON` (default `false`):
+- **Plano** — formato legible para desarrollo local.
+- **JSON** — una línea JSON por log, con `request_id` propagado por todos los logs de un mismo request vía `ContextVar`.
+
+Un middleware ASGI (`RequestIdMiddleware`) lee el header `X-Request-ID` o genera un UUID, lo inyecta en `request_id_var` durante el request y lo echoes en la respuesta.
 
 **Por qué:**
-- El logging plano es suficiente para desarrollo y cumple el requisito obligatorio "logs claros que permitan entender qué paso del flujo se está ejecutando".
-- JSON estructurado es un esfuerzo adicional que aporta valor principalmente en agregadores (CloudWatch, ELK) — relevante solo si se despliega en AWS.
+- Dev local: JSON en consola es molesto de leer, logs planos ganan.
+- Prod / staging: JSON es necesario para filtrar/agregar en CloudWatch, Datadog o Loki. El `request_id` correlaciona todos los logs de un mismo request (incluyendo los del bot) sin tener que pasar el id por parámetro en cada función.
+- Un toggle vía env var permite cambiar de modo sin recompilar.
+- Stdlib-only (sin `structlog` ni dependencias extra) — menos superficie de ataque y menos drift.
 
 **Consecuencias:**
-- Los logs de las primeras fases tendrán formato `"%(asctime)s %(levelname)s %(name)s - %(message)s"` con campos como `step=…`, `job_id=…` embebidos en el mensaje para facilitar grep.
+- En prod, fijar `LOG_JSON=true`. El frontend puede reenviar su propio `X-Request-ID` para correlación full-stack.
+- El `request_id` aparece también en la respuesta HTTP (`X-Request-ID`), útil para soporte: un usuario reporta un bug y pega el id, se busca directo en el agregador.
+- Los campos `step=…`, `job_id=…`, `action=…` siguen embebidos en `msg` para mantener greps compatibles con el modo plano.
 
 ---
 
@@ -275,6 +284,27 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 
 ---
 
+## D18 · Reintentos controlados en el bot con whitelist de excepciones
+
+**Qué:** un helper `app/rpa/retry.py` reintenta pasos del bot con backoff exponencial ante fallos **transitorios**. Aplicado a `login` y `extract_rows` en `app/rpa/bot.py`. Configurable vía `BOT_RETRY_ATTEMPTS` (default 3) y `BOT_RETRY_BACKOFF_SECONDS` (default 2.0).
+
+Se distinguen explícitamente dos tipos de errores:
+- **Transitorios** (reintentables): `TimeoutException`, `WebDriverException`, `LoginError`, `ExtractError`. Causas típicas: portal lento, overlay `blockUI` que tarda en desaparecer, glitch de red.
+- **Estructurales** (NO reintentables): `InvalidCredentialsError` (subclase de `LoginError` que se lanza cuando tras el submit seguimos en `/login` — el portal rechazó las credenciales).
+
+**Por qué:**
+- La prueba pide explícitamente "reintentos controlados, si lo consideras adecuado" (PDF §4). Sí es adecuado: el portal Hiruko tiene picos de lentitud observables en dev.
+- Reintentar credenciales inválidas es desperdicio: solo retrasa el fallo del job y puede provocar lockout si el portal tiene protección contra fuerza bruta. La whitelist asegura que solo re-intentamos lo que vale la pena.
+- Backoff exponencial (2s, 4s, 8s…) evita martillar el portal si está caído.
+- Helper genérico en vez de decoradores mágicos: más fácil de leer, testear y configurar caso a caso.
+
+**Consecuencias:**
+- `InvalidCredentialsError` se captura específicamente en `bot.run` para saltar el screenshot (la pantalla `/login` no aporta info) y propagar directo como error del job.
+- Tests en `tests/test_retry.py` validan: éxito inmediato, retry-then-success, agotamiento, no-retry en excepción fuera de whitelist, rechazo de `attempts=0`.
+- Trazabilidad: cada retry emite un log `step=<paso> retry=transient attempt=N/M delay=Xs error=...`; cuando se agota, `retry=exhausted`.
+
+---
+
 ## Análisis técnico (preguntas obligatorias del enunciado)
 
 Respuestas a los 8 puntos del análisis técnico requerido en el PDF §11.
@@ -337,7 +367,7 @@ Respuestas a los 8 puntos del análisis técnico requerido en el PDF §11.
 - Secret manager (AWS Secrets Manager, Vault) en vez de `.env`.
 - Rate limiting en `/rpa/extract`.
 - Migraciones con Alembic.
-- Logs estructurados JSON + `request_id` en toda la cadena de trazas.
+- Envío de los logs JSON (ya implementados, ver [D05](#d05--logging-plano-por-defecto-json--request_id-opt-in)) a un agregador real (CloudWatch, Datadog, Loki).
 - Despliegue IaC (Terraform + ECS/Fargate o EKS).
 - Healthchecks profundos (DB + Selenium alcanzable).
 - Backups automatizados de la DB.

@@ -85,8 +85,11 @@ export function NewExtraction() {
         className="bg-white border border-gray-200 rounded-lg p-6 space-y-4 shadow-sm"
       >
         <div>
-          <label className="block text-sm font-medium mb-1">Fecha inicial</label>
+          <label htmlFor="fecha-inicial" className="block text-sm font-medium mb-1">
+            Fecha inicial
+          </label>
           <input
+            id="fecha-inicial"
             type="date"
             required
             min={DATE_MIN}
@@ -101,8 +104,11 @@ export function NewExtraction() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Fecha final</label>
+          <label htmlFor="fecha-final" className="block text-sm font-medium mb-1">
+            Fecha final
+          </label>
           <input
+            id="fecha-final"
             type="date"
             required
             min={DATE_MIN}
@@ -115,8 +121,11 @@ export function NewExtraction() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Límite de filas</label>
+          <label htmlFor="limit" className="block text-sm font-medium mb-1">
+            Límite de filas
+          </label>
           <input
+            id="limit"
             type="number"
             required
             min={LIMIT_MIN}
