@@ -78,7 +78,15 @@ export function RecordDetail() {
   );
 }
 
-function Field({ label, value, mono = false }: { label: string; value: string | null; mono?: boolean }) {
+function Field({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string | null;
+  mono?: boolean;
+}) {
   return (
     <div>
       <dt className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</dt>
