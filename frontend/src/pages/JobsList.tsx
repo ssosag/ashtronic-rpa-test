@@ -11,25 +11,26 @@ export function JobsList() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const tick = async () => {
       try {
-        const data = await api.listJobs();
-        if (cancelled) return;
+        const data = await api.listJobs(0, 50, controller.signal);
         setJobs(data);
         setError(null);
       } catch (e) {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         setError(e instanceof Error ? e.message : String(e));
       }
-      timer = setTimeout(tick, REFRESH_MS);
+      if (!controller.signal.aborted) {
+        timer = setTimeout(tick, REFRESH_MS);
+      }
     };
 
     tick();
     return () => {
-      cancelled = true;
+      controller.abort();
       if (timer) clearTimeout(timer);
     };
   }, []);

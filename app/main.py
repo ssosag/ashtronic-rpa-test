@@ -5,7 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db import models as _models  # noqa: F401 — registers models with Base.metadata
-from app.db.database import init_db, close_db
+from app.db.database import async_session, init_db, close_db
+from app.services import job_service
 from app.api.v1.router import router
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,8 @@ async def lifespan(app: FastAPI):
     logger.info("app_event=startup")
     await init_db()
     logger.info("database=initialized")
+    async with async_session() as db:
+        await job_service.recover_orphan_jobs(db)
     yield
     await close_db()
     logger.info("app_event=shutdown")
@@ -34,7 +37,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

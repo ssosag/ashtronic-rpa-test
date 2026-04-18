@@ -12,20 +12,19 @@ export function useJobPolling(jobId: number | null) {
   useEffect(() => {
     if (jobId === null) return;
 
-    let cancelled = false;
+    const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const tick = async () => {
       try {
-        const fresh = await api.getJob(jobId);
-        if (cancelled) return;
+        const fresh = await api.getJob(jobId, controller.signal);
         setJob(fresh);
         setError(null);
         if (ACTIVE.includes(fresh.status)) {
           timer = setTimeout(tick, POLL_MS);
         }
       } catch (e) {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         setError(e instanceof Error ? e.message : String(e));
         timer = setTimeout(tick, POLL_MS);
       }
@@ -34,7 +33,7 @@ export function useJobPolling(jobId: number | null) {
     tick();
 
     return () => {
-      cancelled = true;
+      controller.abort();
       if (timer) clearTimeout(timer);
     };
   }, [jobId]);

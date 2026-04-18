@@ -89,7 +89,7 @@ Todos los steps:
    - Por cada fila extraída: `INSERT INTO records`.
    - Al terminar: `UPDATE jobs SET status='done', finished_at=NOW(), records_count=N`.
    - En error: `UPDATE jobs SET status='error', error_message=…, finished_at=NOW()` + screenshot en disco.
-5. El frontend hace polling `GET /api/v1/jobs/{id}` cada `POLL_INTERVAL_SECONDS` hasta recibir un estado terminal.
+5. El frontend hace polling `GET /api/v1/jobs/{id}` cada 2 segundos hasta recibir un estado terminal.
 
 ---
 
@@ -102,7 +102,7 @@ Todos los steps:
 | Pantalla | Ruta | Contenido |
 |---|---|---|
 | Nueva extracción | `/` o `/new` | Formulario con `fecha_inicial`, `fecha_final`, `limit`, botón "Ejecutar". Tras submit redirige a `/jobs/{id}`. |
-| Jobs | `/jobs` | Tabla con `id`, `status` (badge), `started_at`, `finished_at`, `records_count`. Auto-refresh cada `POLL_INTERVAL_SECONDS`. Click en fila → detalle. |
+| Jobs | `/jobs` | Tabla con `id`, `status` (badge), `started_at`, `finished_at`, `records_count`. Auto-refresh cada 2 segundos. Click en fila → detalle. |
 | Job detail | `/jobs/{id}` | Parámetros del job, estado, `error_message` si aplica, link a "Ver registros de este job". |
 | Records | `/records` | Tabla de records con filtros por `job_id` y `patient_document`. Paginación. |
 | Record detail | `/records/{id}` | Campos normalizados + bloque `<pre>` con `raw_row_json`. |

@@ -15,10 +15,10 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    headers: { "Content-Type": "application/json", ...(init.headers ?? {}) },
   });
   if (!res.ok) {
     let detail = res.statusText;
@@ -67,21 +67,27 @@ function qs(params: Record<string, string | number | undefined>): string {
 }
 
 export const api = {
-  extract: (body: ExtractRequest) =>
+  extract: (body: ExtractRequest, signal?: AbortSignal) =>
     request<ExtractResponse>("/rpa/extract", {
       method: "POST",
       body: JSON.stringify(body),
+      signal,
     }),
 
-  listJobs: (skip = 0, limit = 50) =>
-    request<Job[]>(`/jobs${qs({ skip, limit })}`),
+  listJobs: (skip = 0, limit = 50, signal?: AbortSignal) =>
+    request<Job[]>(`/jobs${qs({ skip, limit })}`, { signal }),
 
-  getJob: (id: number) => request<Job>(`/jobs/${id}`),
+  getJob: (id: number, signal?: AbortSignal) =>
+    request<Job>(`/jobs/${id}`, { signal }),
 
-  listRecords: (filters: RecordFilters = {}) =>
-    request<RecordRow[]>(`/records${qs({ ...filters, limit: filters.limit ?? 100 })}`),
+  listRecords: (filters: RecordFilters = {}, signal?: AbortSignal) =>
+    request<RecordRow[]>(
+      `/records${qs({ ...filters, limit: filters.limit ?? 100 })}`,
+      { signal }
+    ),
 
-  getRecord: (id: number) => request<RecordDetail>(`/records/${id}`),
+  getRecord: (id: number, signal?: AbortSignal) =>
+    request<RecordDetail>(`/records/${id}`, { signal }),
 };
 
 export { ApiError };

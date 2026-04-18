@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     # App
     log_level: str = "INFO"
     screenshots_dir: str = "/app/artifacts/screenshots"
-    poll_interval_seconds: int = 2
 
     @model_validator(mode="after")
     def normalize_database_url(self) -> "Settings":

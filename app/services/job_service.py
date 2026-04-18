@@ -61,6 +61,29 @@ async def mark_error(db: AsyncSession, job_id: int, error_message: str) -> None:
     logger.info(f"job_id={job_id} status=error")
 
 
+async def recover_orphan_jobs(db: AsyncSession) -> int:
+    """Mark as 'error' any jobs left in a non-terminal state by a previous run.
+
+    Runs at startup. If the api container crashed or was restarted mid-extraction,
+    a job can stay in 'queued' or 'running' forever — the frontend would poll it
+    indefinitely. This resolves them as errors with a clear message.
+    """
+    result = await db.execute(
+        update(Job)
+        .where(Job.status.in_(("queued", "running")))
+        .values(
+            status="error",
+            finished_at=datetime.now(timezone.utc),
+            error_message="orphaned: api restarted mid-extraction",
+        )
+    )
+    await db.commit()
+    count = result.rowcount or 0
+    if count:
+        logger.warning(f"recovered orphan_jobs count={count}")
+    return count
+
+
 async def list_jobs(db: AsyncSession, skip: int = 0, limit: int = 50) -> list[Job]:
     result = await db.execute(
         select(Job).order_by(Job.created_at.desc()).offset(skip).limit(limit)
@@ -87,7 +110,8 @@ async def list_records(
     skip: int = 0,
     limit: int = 50,
 ) -> list[Record]:
-    q = select(Record).order_by(Record.captured_at.desc())
+    # Tie-breaker by id so pagination is stable when records share captured_at
+    q = select(Record).order_by(Record.captured_at.desc(), Record.id.desc())
     if job_id is not None:
         q = q.where(Record.job_id == job_id)
     if patient_document:

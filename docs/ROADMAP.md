@@ -225,7 +225,7 @@ Plan de construcción de la solución en 11 fases (0 → 10). Cada fase tiene **
 - Scaffold Vite: `frontend/package.json`, `vite.config.ts`, `tsconfig.json`, `index.html`, `src/main.tsx`, `src/index.css` (con Tailwind)
 - `src/App.tsx` con `BrowserRouter` y rutas
 - `src/services/api.ts` — cliente tipado contra `/api/v1`
-- `src/hooks/useJobPolling.ts` — hook de polling cada `POLL_INTERVAL_SECONDS`
+- `src/hooks/useJobPolling.ts` — hook de polling cada 2 segundos
 - `src/types/index.ts` — tipos TS de los schemas de la API
 - `src/components/ui/` — `Button`, `Card`, `Input`, `Badge` (con color por estado), `Spinner`, `Table`
 - `src/pages/NewExtraction.tsx` — pantalla 1

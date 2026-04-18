@@ -104,7 +104,7 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 
 **Qué:** incluir desde el primer commit del frontend:
 - Badges de estado con color por `queued | running | done | error`.
-- Auto-refresh de la tabla de Jobs cada `POLL_INTERVAL_SECONDS`.
+- Auto-refresh de la tabla de Jobs cada 2 segundos.
 - Filtros en `/records` por `job_id` y `patient_document`.
 
 **Por qué:**

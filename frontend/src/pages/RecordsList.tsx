@@ -4,8 +4,11 @@ import { api } from "../api/client";
 import type { RecordRow } from "../api/types";
 import { downloadCsv, recordsToCsv } from "../lib/csv";
 
+const PAGE_SIZES = [10, 25, 50, 100];
+
 export function RecordsList() {
   const [records, setRecords] = useState<RecordRow[] | null>(null);
+  const [hasNext, setHasNext] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [jobIdFilter, setJobIdFilter] = useState("");
@@ -13,36 +16,52 @@ export function RecordsList() {
   const [nameFilter, setNameFilter] = useState("");
   const [sedeFilter, setSedeFilter] = useState("");
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Reset to first page whenever filters or page size change
   useEffect(() => {
-    let cancelled = false;
+    setPage(1);
+  }, [jobIdFilter, docFilter, nameFilter, sedeFilter, pageSize]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     const t = setTimeout(async () => {
       try {
-        const data = await api.listRecords({
-          job_id: jobIdFilter ? Number(jobIdFilter) : undefined,
-          patient_document: docFilter || undefined,
-          patient_name: nameFilter || undefined,
-          sede: sedeFilter || undefined,
-          limit: 500,
-        });
-        if (!cancelled) {
-          setRecords(data);
-          setError(null);
-        }
+        // Fetch one extra row to detect if there is a next page
+        const data = await api.listRecords(
+          {
+            job_id: jobIdFilter ? Number(jobIdFilter) : undefined,
+            patient_document: docFilter || undefined,
+            patient_name: nameFilter || undefined,
+            sede: sedeFilter || undefined,
+            skip: (page - 1) * pageSize,
+            limit: pageSize + 1,
+          },
+          controller.signal
+        );
+        setHasNext(data.length > pageSize);
+        setRecords(data.slice(0, pageSize));
+        setError(null);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (controller.signal.aborted) return;
+        setError(e instanceof Error ? e.message : String(e));
       }
-    }, 250); // debounce
+    }, 250);
 
     return () => {
-      cancelled = true;
+      controller.abort();
       clearTimeout(t);
     };
-  }, [jobIdFilter, docFilter, nameFilter, sedeFilter]);
+  }, [jobIdFilter, docFilter, nameFilter, sedeFilter, page, pageSize]);
 
   function onDownload() {
     if (!records || records.length === 0) return;
-    downloadCsv("records.csv", recordsToCsv(records));
+    downloadCsv(`records_p${page}.csv`, recordsToCsv(records));
   }
+
+  const rangeStart = records && records.length > 0 ? (page - 1) * pageSize + 1 : 0;
+  const rangeEnd = records ? (page - 1) * pageSize + records.length : 0;
 
   return (
     <div>
@@ -53,7 +72,7 @@ export function RecordsList() {
           disabled={!records || records.length === 0}
           className="bg-brand hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded"
         >
-          Descargar CSV
+          Descargar CSV (página actual)
         </button>
       </div>
 
@@ -72,7 +91,6 @@ export function RecordsList() {
         <p className="text-sm text-gray-500">Sin registros para estos filtros.</p>
       ) : (
         <>
-          <p className="text-xs text-gray-500 mb-2">{records.length} registros</p>
           <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600">
@@ -104,6 +122,43 @@ export function RecordsList() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
+            <div className="flex items-center gap-2">
+              <span>Filas por página:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span>
+                {rangeStart}–{rangeEnd} (página {page})
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={!hasNext}
+                className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Siguiente
+              </button>
+            </div>
           </div>
         </>
       )}

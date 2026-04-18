@@ -43,7 +43,6 @@ Copiar `.env.example` a `.env` y completar los valores. Variables principales:
 | `SELENIUM_TIMEOUT` | Timeout global de esperas explícitas (segundos) |
 | `SCREENSHOTS_DIR` | Carpeta donde el bot guarda snapshots en error |
 | `LOG_LEVEL` | Nivel de logging (`INFO`, `DEBUG`, …) |
-| `POLL_INTERVAL_SECONDS` | Intervalo de polling del frontend al estado de un job |
 
 ## 6. Cómo levantar la solución
 
@@ -84,7 +83,7 @@ _Pendiente: captura de las 3 pantallas tras Fase 6._
 2. El frontend hace `POST /api/v1/rpa/extract`. La API crea un `Job` en estado `queued`, encola una `BackgroundTask` y responde `202` con `job_id`.
 3. La `BackgroundTask` marca el job como `running`, abre un WebDriver remoto contra el contenedor Selenium y ejecuta los pasos: `login → navigate → filters → extract`.
 4. Cada fila extraída se persiste como `Record` asociado al `Job`. Al terminar, el job pasa a `done`. Si algo falla, pasa a `error` con `error_message` y se guarda un screenshot.
-5. El frontend consulta `GET /api/v1/jobs/{id}` cada `POLL_INTERVAL_SECONDS` hasta que el estado sea terminal.
+5. El frontend consulta `GET /api/v1/jobs/{id}` cada 2 segundos (constante `POLL_MS` en `useJobPolling.ts`) hasta que el estado sea terminal.
 
 ## 10. Checklist de verificación en local
 

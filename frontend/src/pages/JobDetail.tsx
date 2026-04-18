@@ -6,55 +6,70 @@ import { StatusBadge } from "../components/StatusBadge";
 import { useJobPolling } from "../hooks/useJobPolling";
 import { downloadCsv, recordsToCsv } from "../lib/csv";
 
+const PAGE_SIZES = [10, 25, 50, 100];
+
 export function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const jobId = id ? Number(id) : null;
   const { job, error: jobError } = useJobPolling(jobId);
 
   const [records, setRecords] = useState<RecordRow[] | null>(null);
+  const [hasNext, setHasNext] = useState(false);
   const [recordsError, setRecordsError] = useState<string | null>(null);
   const [filterDoc, setFilterDoc] = useState("");
   const [filterName, setFilterName] = useState("");
   const [filterSede, setFilterSede] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const canLoad = job && (job.status === "done" || job.records_count > 0);
 
+  // Reset to first page whenever filters or page size change
+  useEffect(() => {
+    setPage(1);
+  }, [filterDoc, filterName, filterSede, pageSize]);
+
   useEffect(() => {
     if (!jobId || !canLoad) return;
-    let cancelled = false;
+    const controller = new AbortController();
     (async () => {
       try {
-        const data = await api.listRecords({
-          job_id: jobId,
-          patient_document: filterDoc || undefined,
-          patient_name: filterName || undefined,
-          sede: filterSede || undefined,
-          limit: 500,
-        });
-        if (!cancelled) {
-          setRecords(data);
-          setRecordsError(null);
-        }
+        const data = await api.listRecords(
+          {
+            job_id: jobId,
+            patient_document: filterDoc || undefined,
+            patient_name: filterName || undefined,
+            sede: filterSede || undefined,
+            skip: (page - 1) * pageSize,
+            limit: pageSize + 1,
+          },
+          controller.signal
+        );
+        setHasNext(data.length > pageSize);
+        setRecords(data.slice(0, pageSize));
+        setRecordsError(null);
       } catch (e) {
-        if (!cancelled) {
-          setRecordsError(e instanceof Error ? e.message : String(e));
-        }
+        if (controller.signal.aborted) return;
+        setRecordsError(e instanceof Error ? e.message : String(e));
       }
     })();
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [jobId, canLoad, filterDoc, filterName, filterSede]);
+  }, [jobId, canLoad, filterDoc, filterName, filterSede, page, pageSize]);
 
   const csvFilename = useMemo(
-    () => (job ? `job_${job.id}_records.csv` : "records.csv"),
-    [job]
+    () => (job ? `job_${job.id}_records_p${page}.csv` : `records_p${page}.csv`),
+    [job, page]
   );
 
   function onDownload() {
     if (!records || records.length === 0) return;
     downloadCsv(csvFilename, recordsToCsv(records));
   }
+
+  const rangeStart = records && records.length > 0 ? (page - 1) * pageSize + 1 : 0;
+  const rangeEnd = records ? (page - 1) * pageSize + records.length : 0;
 
   if (!jobId) return <p>Job inválido.</p>;
 
@@ -73,7 +88,7 @@ export function JobDetail() {
             disabled={!records || records.length === 0}
             className="bg-brand hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium px-4 py-2 rounded"
           >
-            Descargar CSV
+            Descargar CSV (página actual)
           </button>
         )}
       </div>
@@ -114,32 +129,71 @@ export function JobDetail() {
           ) : records.length === 0 ? (
             <p className="text-sm text-gray-500">Sin registros para estos filtros.</p>
           ) : (
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    <Th>No. Orden</Th>
-                    <Th>Documento</Th>
-                    <Th>Nombre</Th>
-                    <Th>Fecha cita</Th>
-                    <Th>Sede</Th>
-                    <Th>Contrato</Th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {records.map((r) => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <Td className="font-mono">{r.external_row_id ?? "—"}</Td>
-                      <Td>{r.patient_document ?? "—"}</Td>
-                      <Td>{r.patient_name ?? "—"}</Td>
-                      <Td>{r.date_service ?? "—"}</Td>
-                      <Td>{r.sede ?? "—"}</Td>
-                      <Td>{r.contrato ?? "—"}</Td>
+            <>
+              <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <Th>No. Orden</Th>
+                      <Th>Documento</Th>
+                      <Th>Nombre</Th>
+                      <Th>Fecha cita</Th>
+                      <Th>Sede</Th>
+                      <Th>Contrato</Th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {records.map((r) => (
+                      <tr key={r.id} className="hover:bg-gray-50">
+                        <Td className="font-mono">{r.external_row_id ?? "—"}</Td>
+                        <Td>{r.patient_document ?? "—"}</Td>
+                        <Td>{r.patient_name ?? "—"}</Td>
+                        <Td>{r.date_service ?? "—"}</Td>
+                        <Td>{r.sede ?? "—"}</Td>
+                        <Td>{r.contrato ?? "—"}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                  <span>Filas por página:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
+                  >
+                    {PAGE_SIZES.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span>
+                    {rangeStart}–{rangeEnd} (página {page})
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={!hasNext}
+                    className="px-3 py-1 border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            </>
           )}
         </>
       )}
