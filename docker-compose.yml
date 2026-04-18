@@ -1,0 +1,63 @@
+services:
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ashtronic}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ashtronic}
+      POSTGRES_DB: ${POSTGRES_DB:-ashtronic_rpa}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ashtronic} -d ${POSTGRES_DB:-ashtronic_rpa}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  selenium:
+    image: selenium/standalone-chrome:latest
+    ports:
+      - "4444:4444"
+      - "7900:7900"   # noVNC — open in browser, password: secret
+    shm_size: "2gb"   # Chrome needs extra shared memory in containers
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4444/wd/hub/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      # Override host-specific URLs so they resolve inside the Docker network
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ashtronic}:${POSTGRES_PASSWORD:-ashtronic}@db:5432/${POSTGRES_DB:-ashtronic_rpa}
+      SELENIUM_HUB_URL: http://selenium:4444/wd/hub
+      SCREENSHOTS_DIR: /app/artifacts/screenshots
+    volumes:
+      - ./artifacts/screenshots:/app/artifacts/screenshots
+    depends_on:
+      db:
+        condition: service_healthy
+      selenium:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # frontend: added in Phase 6
+  # frontend:
+  #   build: ./frontend
+  #   ports:
+  #     - "80:80"
+  #   depends_on:
+  #     - api
+  #   restart: unless-stopped
+
+volumes:
+  postgres_data:
