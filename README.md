@@ -2,53 +2,96 @@
 
 > Solución end-to-end RPA + Backend + Base de datos + Frontend de monitoreo para extraer registros de facturación del portal Hiruko Prodiagnóstico.
 
-**Estado:** 🚧 en construcción (Fase 0 — Bootstrap).
-
 ---
 
 ## 1. Descripción general
 
-_Pendiente: resumen del sistema al terminar cada fase._
+El sistema automatiza la extracción de filas del módulo **Facturación → Generar Factura** del portal Hiruko. El usuario dispara una extracción desde un frontend React indicando `fecha_inicial`, `fecha_final` y `limit`; la API FastAPI encola un job, un bot Selenium inicia sesión en el portal, aplica los filtros obligatorios (**Convenio: Savia Salud Subsidiado**, contrato correspondiente, sedes: todas, modalidad: US), lee la tabla de resultados fila por fila y persiste cada una en PostgreSQL asociada al job. El frontend hace polling del estado del job cada 2s hasta que termine y permite ver/descargar los registros en CSV.
 
-## 2. Arquitectura propuesta
+## 2. Arquitectura
 
-El sistema se compone de 4 servicios orquestados con Docker Compose:
+Cuatro servicios orquestados con Docker Compose:
 
-- **frontend** — React + Vite servido con Nginx
-- **api** — FastAPI con ejecución asíncrona del bot vía `BackgroundTasks`
-- **db** — PostgreSQL 16
-- **selenium** — `selenium/standalone-chrome:latest` con Chrome headless
+| Servicio | Rol | Imagen |
+|---|---|---|
+| `frontend` | SPA React servida por Nginx | `./frontend` (multi-stage) |
+| `api` | FastAPI + SQLAlchemy async + BackgroundTasks | `./` (Python 3.12-slim) |
+| `db` | PostgreSQL | `postgres:16-alpine` |
+| `selenium` | Chrome headless + WebDriver | `selenium/standalone-chrome:latest` |
 
-Ver diagrama en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) (diagramas en `docs/images/`).
+Descripción detallada de servicios, modelo de datos y flujo del bot en [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
+```
+┌──────────┐      HTTP JSON     ┌──────────┐    asyncpg    ┌───────┐
+│ frontend │ ─────────────────► │   api    │ ────────────► │  db   │
+│  React   │ ◄───────────────── │ FastAPI  │               │ PG 16 │
+└──────────┘    poll 2s         └────┬─────┘               └───────┘
+                                     │ BackgroundTask
+                                     ▼
+                                ┌──────────┐    HTTPS     ┌──────────────┐
+                                │ selenium │ ───────────► │ Portal Hiruko│
+                                │  chrome  │              └──────────────┘
+                                └──────────┘
+```
 
 ## 3. Estructura de carpetas
 
-_Pendiente: árbol final al terminar Fase 5._
+```
+ashtronic-rpa-test/
+├── app/                       # Backend FastAPI
+│   ├── api/v1/                # Routers: health, rpa, jobs, records
+│   ├── core/                  # config (Pydantic Settings), logging
+│   ├── db/                    # database.py (engine lazy), models.py
+│   ├── rpa/                   # driver, waits, errors, steps/
+│   │   └── steps/             # login, navigate, filters, extract
+│   ├── schemas/               # Pydantic v2 (ExtractRequest, JobOut, RecordOut…)
+│   ├── services/              # job_service, rpa_runner
+│   └── main.py                # App + lifespan (recover_orphan_jobs al inicio)
+├── frontend/                  # React 18 + Vite 5 + TS + Tailwind
+│   └── src/
+│       ├── api/               # client.ts, types.ts
+│       ├── components/        # StatusBadge
+│       ├── hooks/             # useJobPolling (AbortController)
+│       ├── lib/               # csv.ts + csv.test.ts
+│       └── pages/             # NewExtraction, JobsList, JobDetail, RecordsList
+├── tests/                     # pytest + httpx + aiosqlite in-memory
+├── docs/                      # DECISIONES_TECNICAS, ARCHITECTURE
+├── .github/workflows/ci.yml   # pytest + frontend lint/format/test/build
+├── docker-compose.yml
+├── Dockerfile                 # backend
+├── requirements.txt / requirements-dev.txt
+├── pytest.ini
+└── .env.example
+```
 
 ## 4. Prerrequisitos
 
-- Docker + Docker Compose
+- Docker Desktop (o Docker Engine + Docker Compose v2)
 - Git
+- Credenciales del portal Hiruko Prodiagnóstico
+
+Para desarrollo local sin Docker (opcional): Python 3.12 y Node.js 20+.
 
 ## 5. Variables de entorno
 
-Copiar `.env.example` a `.env` y completar los valores. Variables principales:
+Copiar `.env.example` a `.env` y completar credenciales. **Ningún secreto vive en el repositorio.**
 
-| Variable | Propósito |
-|---|---|
-| `PORTAL_URL` | URL base del portal Hiruko |
-| `PORTAL_USER` / `PORTAL_PASSWORD` | Credenciales del portal |
-| `DATABASE_URL` | Conexión asyncpg a Postgres |
-| `SELENIUM_HUB_URL` | Endpoint del WebDriver remoto |
-| `SELENIUM_TIMEOUT` | Timeout global de esperas explícitas (segundos) |
-| `SCREENSHOTS_DIR` | Carpeta donde el bot guarda snapshots en error |
-| `LOG_LEVEL` | Nivel de logging (`INFO`, `DEBUG`, …) |
+| Variable | Propósito | Ejemplo |
+|---|---|---|
+| `PORTAL_URL` | URL base del portal | `https://prodiagnosticotest.hiruko.com.co` |
+| `PORTAL_USER` | Usuario del portal | `ASHTRONIC` |
+| `PORTAL_PASSWORD` | Contraseña del portal | `********` |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Credenciales PG | `ashtronic/ashtronic/ashtronic_rpa` |
+| `DATABASE_URL` | DSN async para SQLAlchemy | `postgresql+asyncpg://ashtronic:ashtronic@db:5432/ashtronic_rpa` |
+| `SELENIUM_HUB_URL` | Endpoint WebDriver remoto | `http://selenium:4444/wd/hub` |
+| `SELENIUM_TIMEOUT` | Timeout global de esperas (s) | `30` |
+| `SCREENSHOTS_DIR` | Carpeta de screenshots en error | `/app/artifacts/screenshots` |
+| `LOG_LEVEL` | Nivel de logging | `INFO` |
 
 ## 6. Cómo levantar la solución
 
 ```bash
-cp .env.example .env
-# editar .env con las credenciales reales
+cp .env.example .env         # completar credenciales del portal
 docker compose up --build
 ```
 
@@ -56,79 +99,150 @@ URLs:
 
 | Servicio | URL |
 |---|---|
-| Frontend | http://localhost |
+| Frontend | http://localhost:5173 |
 | API | http://localhost:8000 |
-| API docs | http://localhost:8000/docs |
-| Selenium console | http://localhost:4444 |
+| API docs (Swagger) | http://localhost:8000/docs |
+| Selenium console (noVNC) | http://localhost:7900 (password `secret`) |
+
+Para parar:
+
+```bash
+docker compose down          # conserva datos
+docker compose down -v       # borra el volumen de Postgres
+```
+
+### Inicialización del esquema de BD
+
+El esquema se crea al arranque de la API llamando `Base.metadata.create_all` dentro del `lifespan` (ver `app/main.py`). Es reproducible (`docker compose down -v && docker compose up --build` regenera todo desde cero) y determinístico: los modelos en `app/db/models.py` son la única fuente de verdad del esquema. Para una prueba con un modelo estable, Alembic sería overhead; en producción la migración sería el siguiente paso (§11.7).
 
 ## 7. Cómo probar los endpoints
 
-_Pendiente: ejemplos `curl` tras Fase 3._
+Todos los endpoints están bajo `/api/v1`. Doc interactiva en `/docs`.
+
+### Disparar una extracción
+
+PowerShell:
+
+```powershell
+curl -X POST http://localhost:8000/api/v1/rpa/extract `
+  -H 'Content-Type: application/json' `
+  -d '{"fecha_inicial":"2026-03-01","fecha_final":"2026-03-31","limit":20}'
+```
+
+bash/zsh:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/rpa/extract \
+  -H 'Content-Type: application/json' \
+  -d '{"fecha_inicial":"2026-03-01","fecha_final":"2026-03-31","limit":20}'
+```
+
+Respuesta `202`:
+
+```json
+{ "job_id": 1, "status": "queued", "message": "Extraction queued" }
+```
+
+### Catálogo
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `POST` | `/api/v1/rpa/extract` | Dispara una extracción |
-| `GET`  | `/api/v1/jobs` | Lista ejecuciones |
-| `GET`  | `/api/v1/jobs/{id}` | Detalle de una ejecución |
-| `GET`  | `/api/v1/records` | Lista registros extraídos (filtros: `job_id`, `patient_document`) |
-| `GET`  | `/api/v1/records/{id}` | Detalle de un registro |
+| `GET`  | `/health` | Health check. |
+| `POST` | `/rpa/extract` | Encola una extracción. Valida `limit > 0`, `fecha_inicial ≤ fecha_final`. Devuelve `202` + `job_id`. |
+| `GET`  | `/jobs?skip=&limit=` | Lista jobs por `created_at DESC`. `limit` máx 100. |
+| `GET`  | `/jobs/{id}` | Detalle de un job. `404` si no existe. |
+| `GET`  | `/records?job_id=&patient_document=&patient_name=&sede=&skip=&limit=` | Lista registros con filtros `ILIKE` parciales. `limit` máx 500. |
+| `GET`  | `/records/{id}` | Detalle del registro + `raw_row_json`. |
 
 ## 8. Cómo usar el frontend
 
-_Pendiente: captura de las 3 pantallas tras Fase 6._
+Cuatro rutas principales (React Router):
+
+1. **Nueva extracción** (`/`) — formulario con validación: fechas entre 2000 y 2100, `limit` entero positivo (sin tope superior). Al enviar, navega al detalle del job creado.
+2. **Jobs** (`/jobs`) — tabla con estado, fechas, `limit`, `records_count`. Click en una fila abre el detalle.
+3. **Detalle de Job** (`/jobs/:id`) — polling cada 2s mientras el estado sea `queued`/`running`. Muestra los registros asociados con paginación (10/25/50/100) y botón **Descargar CSV** (página actual). Si el job terminó en `error`, muestra `error_message`.
+4. **Records** (`/records`) — tabla global con filtros por `patient_document`, `patient_name` y `sede`. Misma paginación + CSV.
+
+Paleta Tailwind: `brand` (primario `#2563eb`) + `status-{done,running,queued,error}` para los badges.
 
 ## 9. Flujo general del sistema
 
-1. Usuario abre **Nueva extracción** en el frontend y envía `fecha_inicial`, `fecha_final`, `limit`.
-2. El frontend hace `POST /api/v1/rpa/extract`. La API crea un `Job` en estado `queued`, encola una `BackgroundTask` y responde `202` con `job_id`.
-3. La `BackgroundTask` marca el job como `running`, abre un WebDriver remoto contra el contenedor Selenium y ejecuta los pasos: `login → navigate → filters → extract`.
-4. Cada fila extraída se persiste como `Record` asociado al `Job`. Al terminar, el job pasa a `done`. Si algo falla, pasa a `error` con `error_message` y se guarda un screenshot.
-5. El frontend consulta `GET /api/v1/jobs/{id}` cada 2 segundos (constante `POLL_MS` en `useJobPolling.ts`) hasta que el estado sea terminal.
+1. Usuario envía el formulario → `POST /api/v1/rpa/extract`.
+2. `job_service.create_job` inserta un `Job(status="queued")`; la API responde `202` con `job_id` y encola una `BackgroundTask` (`rpa_runner.run(job_id)`).
+3. `rpa_runner` abre su propia sesión async, marca el job como `running`, instancia un WebDriver remoto contra `SELENIUM_HUB_URL` y ejecuta los pasos en orden: `login → navigate → filters → extract`.
+4. `extract_rows` hace click en **Buscar**, espera a que desaparezca el overlay `blockUI`, espera la presencia del `tbody` (la tabla se renderiza dinámicamente tras el primer click) y lee las filas hasta `min(limit, filas_disponibles)`.
+5. Las filas se insertan en una única transacción (`async with db.begin()`) junto con el `UPDATE Job SET status='done'`. En error: `logger.exception` captura el traceback, `mark_error` deja el job en `error` con `error_message` + screenshot en `artifacts/screenshots/`.
+6. El frontend hace polling de `/jobs/:id` hasta que `status ∈ {done, error}`. El polling se cancela con `AbortController` al desmontar o cambiar de job.
+7. Al arrancar la API, `recover_orphan_jobs` marca como `error` cualquier job que quedó en `queued`/`running` (ej. crash del contenedor mid-extracción).
 
-## 10. Checklist de verificación en local
+## 10. Extracción de datos — campos persistidos y justificación
 
-- [ ] `cp .env.example .env` y completar credenciales
+Por cada fila extraída del portal se guarda en la tabla `records`:
+
+| Campo | Tipo | Justificación |
+|---|---|---|
+| `external_row_id` | `str?` | Identificador visible en la tabla del portal. Permite trazar una fila de BD a su origen sin depender de `id` interno. |
+| `patient_name` | `str?` | Nombre del paciente. Campo central del negocio; usado en filtros del frontend. |
+| `patient_document` | `str?` | Documento. Clave funcional más utilizada para búsquedas. Lleva índice. |
+| `date_service` | `str` | Fecha/hora del servicio tal como la muestra el portal. Se guarda como string para evitar suposiciones de formato y preservar el valor exacto (el portal puede devolver `YYYY-MM-DD HH:MM:SS`). |
+| `sede` | `str?` | Sede del servicio. Filtro del frontend. |
+| `contrato` | `str?` | Contrato/convenio asociado. |
+| `raw_row_json` | `JSONB` | Fila completa con **todas** las columnas visibles del portal. Garantiza trazabilidad total aunque añadamos o eliminemos columnas normalizadas. |
+| `captured_at` | `datetime` | Timestamp del momento de inserción en BD. |
+| `job_id` | `FK` | Enlace al `Job` que la extrajo (`ON DELETE CASCADE`). |
+
+**Criterio:** normalizamos los campos que el frontend necesita filtrar u ordenar; el resto vive en `raw_row_json` para no perder información y no acoplarse a cambios de layout del portal.
+
+## 11. Robustez del bot
+
+Cumplimiento explícito de las consideraciones obligatorias del PDF (§4):
+
+- **Esperas explícitas, no `sleep`.** Todas las esperas usan `WebDriverWait + expected_conditions` en `app/rpa/waits.py`: `wait_present`, `wait_visible`, `wait_clickable`, `wait_not_disabled`, `wait_select_populated`, `wait_overlay_gone`. No hay `time.sleep` como mecanismo primario.
+- **Validación del cambio de tabla.** Tras click en **Buscar**, `extract_rows` espera a que desaparezca el overlay `blockUI` **y** a que aparezca el `tbody` — la tabla se renderiza dinámicamente solo tras la primera búsqueda, por lo que validamos presencia real y no solo ausencia de overlay.
+- **Timeouts controlados.** `SELENIUM_TIMEOUT` (env, default 30s) aplica globalmente; cada helper acepta override por paso. El timeout levanta `TimeoutException`, capturada por el orquestador.
+- **Manejo de errores.** `app/rpa/errors.py` define excepciones por fase (`LoginError`, `NavigationError`, `ExtractionError`). El runner captura, hace `logger.exception` (incluye traceback), guarda screenshot en `SCREENSHOTS_DIR` y marca el job como `error` con el mensaje.
+- **Logs trazables.** Cada paso loggea con un formato consistente: `step=<fase> action=<acción>`; ej. `step=extract action=click_buscar`, `step=filters action=select_convenio value=...`. Permite grep por fase o por acción.
+- **Selectores estables.** Ids (`#detalle_consulta`, `#btn-buscar`) cuando existen; de lo contrario, clases semánticas (`.blockUI`, `.dataTables_processing`). Los selectores viven centralizados por paso, no dispersos.
+- **Reintentos.** No hay reintento automático a nivel de fila porque la mayoría de errores son estructurales (login inválido, portal caído, cambio de DOM) y reintentar no ayuda. Un reintento controlado del job completo sería el siguiente paso (§12.5).
+
+## 12. Checklist de verificación en local
+
+- [ ] `cp .env.example .env` y completar credenciales reales
 - [ ] `docker compose up --build` arranca sin errores
-- [ ] `http://localhost:8000/api/v1/health` responde `200`
-- [ ] `http://localhost:4444` muestra la consola de Selenium
-- [ ] `http://localhost` carga el frontend
-- [ ] Una extracción de prueba termina en estado `done`
+- [ ] `GET http://localhost:8000/api/v1/health` → `200`
+- [ ] `http://localhost:7900` (password `secret`) muestra la pantalla de Chrome headless
+- [ ] `http://localhost:5173` carga el frontend
+- [ ] Una extracción pequeña (`limit=5`) termina en `done`
+- [ ] Los registros aparecen en `/records` y pueden descargarse como CSV
 
-## 11. Análisis técnico
+## 13. Tests
 
-> Respuestas a las 7 preguntas obligatorias del enunciado. _Pendientes hasta [Fase 8](./docs/ROADMAP.md#fase-8-readme-final)._
+Backend (pytest + aiosqlite in-memory):
 
-1. **¿Por qué esta arquitectura?** _TODO_
-2. **Ventajas de la propuesta.** _TODO_
-3. **Desventajas, límites o riesgos.** _TODO_
-4. **Decisiones por simplicidad o tiempo.** _TODO_
-5. **Qué mejoraría con más tiempo.** _TODO_
-6. **Cómo escalaría si el volumen creciera.** _TODO_
-7. **Qué faltaría para llevar a producción.** _TODO_
-8. **Evolución futura.** _TODO_
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
 
-## 12. Estado del proyecto
+Cubre: validación de schemas, endpoints (`/rpa/extract`, `/jobs`, `/records`), `job_service` (`recover_orphan_jobs`, filtros), helpers de esperas (`wait_overlay_gone` con mocks).
 
-Plan de construcción completo en [`docs/ROADMAP.md`](./docs/ROADMAP.md).
+Frontend (vitest):
 
-| Fase | Estado |
-|---|---|
-| 0 — Bootstrap | 🟡 En curso |
-| 1 — Backend skeleton | ⚪ Pendiente |
-| 2 — DB y modelos | ⚪ Pendiente |
-| 3 — Endpoints (stub) | ⚪ Pendiente |
-| 4 — Docker base | ⚪ Pendiente |
-| 5 — Bot RPA real | ⚪ Pendiente |
-| 6 — Frontend | ⚪ Pendiente |
-| 7 — Tests mínimos | ⚪ Pendiente |
-| 8 — README final | ⚪ Pendiente |
-| 9 — BONUS observabilidad | ⚪ Pendiente |
-| 10 — BONUS despliegue AWS | ⚪ Pendiente |
+```bash
+cd frontend && npm install && npm test
+```
+
+Cubre la serialización CSV (escape de comas/comillas/newlines, null/undefined).
+
+CI: `.github/workflows/ci.yml` ejecuta ambos en cada push/PR, más `eslint`, `prettier --check` y `vite build`.
+
+## 14. Análisis técnico
+
+El análisis técnico requerido por el enunciado (por qué esta arquitectura, ventajas, desventajas, decisiones por simplicidad/tiempo, qué mejoraría, cómo escalaría, qué faltaría para producción, evolución futura) se encuentra en [`docs/DECISIONES_TECNICAS.md`](./docs/DECISIONES_TECNICAS.md#análisis-técnico-preguntas-obligatorias-del-enunciado), junto con el registro detallado de cada decisión individual (D01–D17).
 
 ---
 
 ## Documentación complementaria
 
-- [`docs/ROADMAP.md`](./docs/ROADMAP.md) — plan de construcción fase a fase con entregables, commits y riesgos.
-- [`docs/DECISIONES_TECNICAS.md`](./docs/DECISIONES_TECNICAS.md) — registro vivo de decisiones con su justificación.
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — diagramas (ERD, arquitectura, flujo del bot, secuencia, wireframes).
+- [`docs/DECISIONES_TECNICAS.md`](./docs/DECISIONES_TECNICAS.md) — decisiones técnicas + análisis técnico obligatorio.
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — descripción de servicios, modelo de datos, flujo del bot y secuencia de la extracción.

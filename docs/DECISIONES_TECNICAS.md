@@ -23,6 +23,7 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 - [D15 · Esperas explícitas + validación de cambio de tabla](#d15--esperas-explícitas--validación-de-cambio-de-tabla)
 - [D16 · Screenshots automáticos en errores del bot](#d16--screenshots-automáticos-en-errores-del-bot)
 - [D17 · Conventional Commits](#d17--conventional-commits)
+- [Análisis técnico (preguntas obligatorias del enunciado)](#análisis-técnico-preguntas-obligatorias-del-enunciado)
 
 ---
 
@@ -39,7 +40,7 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 **Consecuencias:**
 - El bot usa `webdriver.Remote(command_executor=SELENIUM_HUB_URL)`.
 - Debemos esperar a que el contenedor Selenium esté `healthy` antes del arranque de la API.
-- En AWS ([Fase 10](./ROADMAP.md#fase-10-bonus-despliegue-aws)), lo más cercano es correr Selenium como sidecar en la misma task definition de ECS.
+- En un despliegue AWS futuro, lo más cercano es correr Selenium como sidecar en la misma task definition de ECS.
 
 ---
 
@@ -54,7 +55,7 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 
 **Consecuencias:**
 - `DATABASE_URL` debe usar esquema `postgresql+asyncpg://` (normalizamos en el config si llega como `postgresql://`).
-- En migración a RDS ([Fase 10](./ROADMAP.md#fase-10-bonus-despliegue-aws)), el mismo esquema aplica sin cambios en el código.
+- En una migración a RDS futura, el mismo esquema aplica sin cambios en el código.
 
 ---
 
@@ -68,7 +69,7 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 - Alembic sumaría al menos un archivo de config + carpeta de versiones + comandos adicionales en el entrypoint.
 
 **Consecuencias:**
-- **No es válido para producción.** En el análisis técnico del README se documenta explícitamente qué cambiaría: adoptar Alembic, `alembic upgrade head` como paso previo al `uvicorn`. En una migración a RDS ([Fase 10](./ROADMAP.md#fase-10-bonus-despliegue-aws)) ese cambio se vuelve prerequisito.
+- **No es válido para producción.** En el análisis técnico del README se documenta explícitamente qué cambiaría: adoptar Alembic, `alembic upgrade head` como paso previo al `uvicorn`. En una migración a RDS ese cambio se vuelve prerequisito.
 - Un cambio de schema requeriría borrar el volumen `postgres_data` en dev.
 
 ---
@@ -89,7 +90,7 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 
 ## D05 · Logging plano en Fase 1, estructurado JSON en Fase 9 (bonus)
 
-**Qué:** logging con `logging.basicConfig` estándar en las primeras fases. Migrar a formato JSON con `request_id` y contexto por paso del bot en [Fase 9](./ROADMAP.md#fase-9-bonus-observabilidad) como bonus de observabilidad.
+**Qué:** logging con `logging.basicConfig` estándar. Una eventual mejora a formato JSON con `request_id` y contexto por paso del bot queda como bonus de observabilidad.
 
 **Por qué:**
 - El logging plano es suficiente para desarrollo y cumple el requisito obligatorio "logs claros que permitan entender qué paso del flujo se está ejecutando".
@@ -133,7 +134,7 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 
 ## D08 · Tests en Fase 7, no antes
 
-**Qué:** se escriben tests mínimos (smoke de endpoints, validación de schemas, helpers de espera del bot) tras tener el happy path funcionando. Planificación detallada en [Fase 7 del roadmap](./ROADMAP.md#fase-7-tests-mínimos).
+**Qué:** se escriben tests mínimos (smoke de endpoints, validación de schemas, helpers de espera del bot) tras tener el happy path funcionando. Implementados en `tests/` con pytest + httpx + aiosqlite.
 
 **Por qué:**
 - TDD estricto triplica el tiempo de una prueba pequeña; el enunciado los marca como **bonus**, no obligatorios.
@@ -243,7 +244,7 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 - `time.sleep` es frágil: demasiado corto → flaky; demasiado largo → lento.
 
 **Consecuencias:**
-- Helper `wait_table_refreshed(driver, snapshot)` en `app/rpa/waits.py`, testeable en [Fase 7](./ROADMAP.md#fase-7-tests-mínimos) con mocks.
+- Helper `wait_table_refreshed(driver, snapshot)` en `app/rpa/waits.py`, testeable con mocks.
 
 ---
 
@@ -271,3 +272,82 @@ Registro vivo de las decisiones de arquitectura y diseño tomadas durante la con
 
 **Consecuencias:**
 - Ejemplos: `feat(rpa): apply savia salud filter with explicit waits`, `docs: technical analysis section in readme`.
+
+---
+
+## Análisis técnico (preguntas obligatorias del enunciado)
+
+Respuestas a los 8 puntos del análisis técnico requerido en el PDF §11.
+
+### 1. ¿Por qué esta arquitectura?
+
+- **FastAPI async + BackgroundTasks (ejecución asíncrona).** El RPA es naturalmente lento (segundos a minutos). Una ejecución síncrona bloquearía el request y provocaría timeouts del cliente. Una cola externa (Celery + Redis) sería la solución "correcta" a escala, pero para una prueba técnica introduce tres servicios adicionales y diluye el foco. `BackgroundTasks` es el punto medio: fire-and-forget dentro del proceso FastAPI, trazabilidad vía el modelo `Job` en BD, y migrable a una cola real sin cambiar el contrato de la API (ver §5).
+- **SQLAlchemy 2.0 async + asyncpg.** `Mapped[...]` da tipos estáticos, `async_sessionmaker` encaja con FastAPI, y permite abrir sesiones independientes en la background task (necesario: la sesión request-scoped de `get_db` ya cerró cuando la task corre).
+- **Selenium en contenedor separado.** Tres ventajas: (1) la API no requiere Chrome instalado, (2) depuración visual vía noVNC en `:7900`, (3) escalar a Selenium Grid sin tocar la API — `SELENIUM_HUB_URL` ya es configurable.
+- **Esperas explícitas.** El portal Hiruko tiene renders dinámicos (bootstrap-select, DataTables, blockUI). Sleeps fijos o son lentos o son flaky.
+- **React + Vite + TS + Tailwind.** Stack moderno y rápido de iterar. Sin React Query ni Redux porque el estado real es mínimo. TypeScript previene drift entre tipos del backend y del frontend.
+
+### 2. Ventajas
+
+- **Reproducible end-to-end** con un `docker compose up`.
+- **Type-safe en ambos lados**: Pydantic v2 en backend, TypeScript estricto en frontend.
+- **Trazabilidad completa**: cada `Record` está asociado a un `Job` con `raw_row_json` de respaldo; errores persistidos con `error_message` + screenshot.
+- **Recovery básico**: jobs huérfanos se resuelven al arranque.
+- **Tests automatizados** (pytest + vitest) corriendo en CI.
+- **Observabilidad mínima suficiente**: logs con formato `step=… action=…`, screenshots automáticos en error.
+
+### 3. Desventajas, límites y riesgos
+
+- **`BackgroundTasks` vive en el proceso de la API**: si el contenedor reinicia mid-extracción, la tarea se pierde. `recover_orphan_jobs` la marca como error, pero no hay reintento.
+- **Concurrencia limitada**: una sola instancia de Selenium standalone. Si se disparan N extracciones simultáneas, compiten por la misma sesión de Chrome.
+- **Polling, no WebSockets/SSE**: genera tráfico constante. A escala de decenas de usuarios activos deja de escalar; para la prueba sobra.
+- **Acoplamiento al DOM del portal**: cambios de id/selector en Hiruko rompen el bot. Mitigado con selectores centralizados, no desacoplado del todo.
+- **Secrets en `.env` local**: adecuado para la prueba; producción requiere secret manager.
+
+### 4. Decisiones por simplicidad/tiempo
+
+- **No Alembic**: `Base.metadata.create_all` al arranque basta para un modelo estable.
+- **No Celery/Redis**: `BackgroundTasks` cubre el caso.
+- **No autenticación en la API**: servicio interno para la prueba.
+- **SQLite in-memory para tests**: más rápido que levantar Postgres; el ORM abstrae la diferencia.
+- **CSV "export de la página actual"** en vez de endpoint `/records/export` server-side.
+- **Sin React Query**: polling manual con `useEffect` + `AbortController`.
+
+### 5. Qué mejoraría con más tiempo
+
+- Cola de tareas real (RQ o Celery + Redis) con reintentos exponenciales y múltiples workers.
+- Endpoint `/records/export` que stream-ee todo el dataset de un job.
+- React Query para caching y stale-while-revalidate.
+- Alembic para migraciones versionadas.
+- Test E2E con HTML mockeado del portal que valide la persistencia completa.
+- Internacionalización del frontend.
+
+### 6. Cómo escalaría si el volumen creciera
+
+- **Horizontal en API**: varias réplicas detrás de un LB. Requiere sacar `BackgroundTasks` a una cola externa para que cualquier worker pueda tomar el job.
+- **Pool de Selenium**: Selenium Grid con N nodos Chrome. El `SELENIUM_HUB_URL` ya es configurable.
+- **Particionar `records`** por `job_id` o `captured_at` si crece a millones. Añadir índices compuestos según los filtros reales.
+- **Cache** (Redis) para `GET /records` con filtros frecuentes.
+- **Streaming CSV server-side** para exports grandes.
+- **Métricas**: Prometheus + Grafana con latencia por paso (`login_ms`, `filters_ms`, `extract_ms`) y ratio de jobs en error.
+
+### 7. Qué faltaría para producción
+
+- Autenticación + autorización (OIDC / JWT).
+- Secret manager (AWS Secrets Manager, Vault) en vez de `.env`.
+- Rate limiting en `/rpa/extract`.
+- Migraciones con Alembic.
+- Logs estructurados JSON + `request_id` en toda la cadena de trazas.
+- Despliegue IaC (Terraform + ECS/Fargate o EKS).
+- Healthchecks profundos (DB + Selenium alcanzable).
+- Backups automatizados de la DB.
+- Alertas: porcentaje de jobs en `error`, latencia p95, ratio de timeouts de Selenium.
+- HTTPS en el frontend + CORS restrictivo.
+
+### 8. Evolución futura
+
+- Plantillas de extracción por cliente/portal: abstraer "portal Hiruko" como una estrategia intercambiable.
+- Dashboard de métricas de negocio (registros por sede, contrato, día).
+- Notificaciones (email/webhook) al terminar un job largo.
+- Reintentos automáticos con backoff cuando el portal devuelve error transitorio.
+- Exportación a Excel con formato.

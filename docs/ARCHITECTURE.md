@@ -1,23 +1,26 @@
 # Arquitectura
 
-Este documento describe la arquitectura de la solución con 5 diagramas. Las imágenes viven en [`./images/`](./images/) y son exportadas desde el archivo Figma del proyecto.
-
-> **Estado de los diagramas:** 🚧 en construcción durante Fase 0. Este archivo actúa de índice y explica cada diagrama en prosa mientras Figma se cierra.
+Descripción textual de la arquitectura de la solución: modelo de datos, servicios, flujo del bot, secuencia del endpoint de extracción y pantallas del frontend.
 
 ---
 
-## 1. Diagrama entidad-relación (ERD)
-
-![ERD](./images/erd.png)
-
-**Explicación.**
+## 1. Modelo de datos (ERD textual)
 
 Dos entidades con relación **1:N**:
 
-- **`jobs`** representa una ejecución del bot. Guarda los parámetros de entrada (`fecha_inicial`, `fecha_final`, `limit`), el estado (`queued | running | done | error`), marcas de tiempo (`started_at`, `finished_at`) y un contador cacheado (`records_count`) para evitar `COUNT(*)` en el listado del frontend.
-- **`records`** representa una fila extraída del portal. Incluye campos normalizados (`patient_name`, `patient_document`, `sede`, `contrato`, `date_service`) y un campo `raw_row_json` (JSONB) con la fila completa para trazabilidad.
-- `records.job_id` es FK a `jobs.id` con `ON DELETE CASCADE` e índice para el filtro por job.
-- Índice adicional sobre `records.patient_document` para búsqueda en el frontend.
+- **`jobs`** — una ejecución del bot.
+  - `id` (PK), `status` (`queued | running | done | error`), `fecha_inicial`, `fecha_final`, `limit`.
+  - Marcas de tiempo: `created_at`, `started_at`, `finished_at`.
+  - `records_count` (cacheado para evitar `COUNT(*)` en el listado del frontend).
+  - `error_message` (texto libre cuando `status='error'`).
+
+- **`records`** — una fila extraída del portal.
+  - `id` (PK), `job_id` (FK → `jobs.id`, `ON DELETE CASCADE`).
+  - Campos normalizados: `patient_name`, `patient_document`, `date_service`, `sede`, `contrato`, `external_row_id`.
+  - `raw_row_json` (JSONB) con la fila completa del portal para trazabilidad.
+  - `captured_at`.
+
+Índices: `ix_records_job_id`, `ix_records_patient_document`.
 
 Justificación del modelo en [`DECISIONES_TECNICAS.md#d13`](./DECISIONES_TECNICAS.md#d13--modelos-job-1--n-record-con-raw_row_json).
 
@@ -25,22 +28,18 @@ Justificación del modelo en [`DECISIONES_TECNICAS.md#d13`](./DECISIONES_TECNICA
 
 ## 2. Arquitectura de despliegue
 
-![Arquitectura](./images/architecture.png)
-
-**Explicación.**
-
-Cuatro servicios en `docker-compose.yml`:
+Cuatro servicios definidos en `docker-compose.yml`:
 
 | Servicio | Imagen | Puerto | Rol |
 |---|---|---|---|
-| `frontend` | Nginx sirviendo React build | `80` | UI de monitoreo |
+| `frontend` | Nginx sirviendo el build de React | `5173 → 80` | UI de monitoreo |
 | `api` | Python 3.12 slim + FastAPI | `8000` | Endpoints + orquestación del bot |
 | `db` | `postgres:16-alpine` | `5432` | Persistencia |
 | `selenium` | `selenium/standalone-chrome:latest` | `4444`, `7900` | WebDriver remoto + noVNC |
 
 Conexiones:
 
-- `frontend → api`: HTTP al path `/api/v1/*` (Nginx reverse proxy).
+- `frontend → api`: HTTP a `/api/v1/*`.
 - `api → db`: `asyncpg` sobre TCP.
 - `api → selenium`: HTTP WebDriver protocol contra `http://selenium:4444/wd/hub`.
 - `selenium → Portal Hiruko`: HTTPS externo (única conexión saliente a internet).
@@ -49,72 +48,62 @@ Conexiones:
 
 ## 3. Flujo funcional del bot
 
-![Flujo del bot](./images/bot-flow.png)
+Secuencia ejecutada por `app/rpa/bot.py`. Cada paso es un módulo en [`app/rpa/steps/`](../app/rpa/steps/):
 
-**Explicación (pasos secuenciales, cada uno es un módulo en [`app/rpa/steps/`](../app/rpa/steps/)):**
-
-1. **`driver.py`** — abrir `webdriver.Remote` contra el hub.
+1. **`driver.py`** — abrir `webdriver.Remote` contra el hub de Selenium.
 2. **`steps/login.py`** — navegar a `/login`, rellenar usuario/password, esperar la redirección al dashboard.
 3. **`steps/navigate.py`** — abrir menú **Facturación → Generar Factura**.
 4. **`steps/filters.py`** — aplicar filtros obligatorios:
    - Convenio = `Savia Salud Subsidiado`
-   - Contrato = el correspondiente (depende del convenio, esperar que el `<select>` se pueble)
+   - Contrato = el correspondiente (depende del convenio; esperar a que el `<select>` se pueble)
    - Sedes = todas
    - Modalidad = `US`
    - Fechas = `fecha_inicial`, `fecha_final`
-5. **`steps/extract.py`** — click en **Buscar**, `wait_table_refreshed`, iterar filas hasta `min(limit, filas_disponibles)`.
+5. **`steps/extract.py`** — click en **Buscar**, esperar a que desaparezca el overlay (`blockUI`), esperar la presencia del `tbody` (la tabla se renderiza dinámicamente tras el primer click) e iterar las filas hasta `min(limit, filas_disponibles)`.
 
-Todos los steps:
-- Usan **esperas explícitas**, no sleeps ([D15](./DECISIONES_TECNICAS.md#d15--esperas-explícitas--validación-de-cambio-de-tabla)).
-- Al fallar, el orquestador `bot.py` captura, guarda screenshot ([D16](./DECISIONES_TECNICAS.md#d16--screenshots-automáticos-en-errores-del-bot)) y propaga una excepción del módulo `app/rpa/errors.py`.
+Convenciones transversales:
+
+- **Esperas explícitas**, nunca `sleep` como mecanismo primario ([D15](./DECISIONES_TECNICAS.md#d15--esperas-explícitas--validación-de-cambio-de-tabla)).
+- En caso de fallo, el orquestador captura la excepción, guarda un screenshot ([D16](./DECISIONES_TECNICAS.md#d16--screenshots-automáticos-en-errores-del-bot)) y propaga una excepción definida en `app/rpa/errors.py`.
 
 ---
 
-## 4. Diagrama de secuencia — flujo del endpoint `/rpa/extract`
+## 4. Secuencia del endpoint `/rpa/extract`
 
-![Secuencia extract](./images/sequence-extract.png)
-
-**Explicación.**
-
-1. El usuario hace submit en **Nueva extracción**.
+1. El usuario envía el formulario en **Nueva extracción**.
 2. El frontend llama `POST /api/v1/rpa/extract`.
 3. La API:
-   - Valida el payload con Pydantic.
-   - `INSERT` en `jobs` con status `queued`.
+   - Valida el payload con Pydantic (`limit > 0`, `fecha_inicial ≤ fecha_final`).
+   - `INSERT` en `jobs` con `status='queued'`.
    - Programa una `BackgroundTask` (`rpa_runner.run(job_id)`).
-   - Responde `202 Accepted` con `{job_id, status}`.
-4. La `BackgroundTask`:
+   - Responde `202 Accepted` con `{ job_id, status, message }`.
+4. La `BackgroundTask` (en una sesión async independiente):
    - `UPDATE jobs SET status='running', started_at=NOW()`.
    - Ejecuta `bot.run(params)` (Selenium contra el portal).
-   - Por cada fila extraída: `INSERT INTO records`.
-   - Al terminar: `UPDATE jobs SET status='done', finished_at=NOW(), records_count=N`.
-   - En error: `UPDATE jobs SET status='error', error_message=…, finished_at=NOW()` + screenshot en disco.
-5. El frontend hace polling `GET /api/v1/jobs/{id}` cada 2 segundos hasta recibir un estado terminal.
+   - Bulk-insert de los `Record` extraídos y `UPDATE jobs SET status='done'` en una única transacción (`async with db.begin()`).
+   - En error: `mark_error` guarda `status='error'`, `error_message` y screenshot en disco.
+5. El frontend hace polling `GET /api/v1/jobs/{id}` cada 2 segundos hasta recibir un estado terminal (`done`/`error`). El polling se cancela con `AbortController` al desmontar o cambiar de job.
+6. Al arrancar la API, `recover_orphan_jobs` marca como `error` cualquier job que quedó en `queued`/`running` (ej. crash del contenedor mid-extracción).
 
 ---
 
-## 5. Wireframes de las 3 pantallas
-
-![Wireframes](./images/wireframes.png)
-
-**Explicación.**
+## 5. Pantallas del frontend
 
 | Pantalla | Ruta | Contenido |
 |---|---|---|
-| Nueva extracción | `/` o `/new` | Formulario con `fecha_inicial`, `fecha_final`, `limit`, botón "Ejecutar". Tras submit redirige a `/jobs/{id}`. |
-| Jobs | `/jobs` | Tabla con `id`, `status` (badge), `started_at`, `finished_at`, `records_count`. Auto-refresh cada 2 segundos. Click en fila → detalle. |
-| Job detail | `/jobs/{id}` | Parámetros del job, estado, `error_message` si aplica, link a "Ver registros de este job". |
-| Records | `/records` | Tabla de records con filtros por `job_id` y `patient_document`. Paginación. |
-| Record detail | `/records/{id}` | Campos normalizados + bloque `<pre>` con `raw_row_json`. |
+| Nueva extracción | `/` | Formulario con `fecha_inicial`, `fecha_final`, `limit`. Validación: fechas entre 2000 y 2100, `limit` entero > 0 (sin tope superior). Tras submit redirige a `/jobs/{id}`. |
+| Jobs | `/jobs` | Tabla con `id`, `status` (badge), `fecha_inicial`, `fecha_final`, `limit`, `records_count`. Click en fila → detalle. |
+| Job detail | `/jobs/:id` | Parámetros del job + polling cada 2s. Muestra los `records` asociados con paginación (10/25/50/100) y botón "Descargar CSV" (página actual). |
+| Records | `/records` | Tabla global con filtros `patient_document`, `patient_name`, `sede`. Misma paginación + CSV. |
 
-**Paleta:**
+**Paleta Tailwind:**
 
 | Rol | Color |
 |---|---|
-| Primario | `#2563eb` |
-| `done` | `#16a34a` |
-| `running` | `#0ea5e9` |
-| `queued` | `#eab308` |
-| `error` | `#dc2626` |
+| `brand` (primario) | `#2563eb` |
+| `status-done` | `#16a34a` |
+| `status-running` | `#0ea5e9` |
+| `status-queued` | `#eab308` |
+| `status-error` | `#dc2626` |
 | Fondo | `#f9fafb` |
 | Texto | `#111827` |
