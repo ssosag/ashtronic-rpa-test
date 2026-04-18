@@ -11,13 +11,21 @@ router = APIRouter()
 @router.get("/records", response_model=list[RecordOut])
 async def list_records(
     job_id: Optional[int] = Query(default=None, description="Filter by job"),
-    patient_document: Optional[str] = Query(default=None, description="Filter by document (partial match)"),
+    patient_document: Optional[str] = Query(default=None, description="Partial match on document"),
+    patient_name: Optional[str] = Query(default=None, description="Partial match on name"),
+    sede: Optional[str] = Query(default=None, description="Partial match on sede"),
     skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=50, ge=1, le=100),
+    limit: int = Query(default=100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
 ):
     return await job_service.list_records(
-        db, job_id=job_id, patient_document=patient_document, skip=skip, limit=limit
+        db,
+        job_id=job_id,
+        patient_document=patient_document,
+        patient_name=patient_name,
+        sede=sede,
+        skip=skip,
+        limit=limit,
     )
 
 

@@ -82,14 +82,20 @@ async def list_records(
     db: AsyncSession,
     job_id: Optional[int] = None,
     patient_document: Optional[str] = None,
+    patient_name: Optional[str] = None,
+    sede: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
 ) -> list[Record]:
     q = select(Record).order_by(Record.captured_at.desc())
     if job_id is not None:
         q = q.where(Record.job_id == job_id)
-    if patient_document is not None:
+    if patient_document:
         q = q.where(Record.patient_document.ilike(f"%{patient_document}%"))
+    if patient_name:
+        q = q.where(Record.patient_name.ilike(f"%{patient_name}%"))
+    if sede:
+        q = q.where(Record.sede.ilike(f"%{sede}%"))
     result = await db.execute(q.offset(skip).limit(limit))
     return list(result.scalars().all())
 
