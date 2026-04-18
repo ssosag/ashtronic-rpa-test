@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # Selenium
     selenium_hub_url: str = "http://selenium:4444/wd/hub"
     selenium_timeout: int = 30
+    selenium_max_sessions: int = 3
 
     # Bot retries for transient failures (portal slow, flaky overlay…).
     # Total calls = bot_retry_attempts (1 = no retry, 3 = up to 2 retries).
