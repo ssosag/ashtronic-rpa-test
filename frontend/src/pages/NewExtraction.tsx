@@ -28,24 +28,24 @@ export function NewExtraction() {
     limitInput.trim() === ""
       ? "El límite es obligatorio."
       : !Number.isInteger(limit)
-      ? "El límite debe ser un número entero."
-      : limit < LIMIT_MIN
-      ? `El límite debe ser mayor o igual a ${LIMIT_MIN}.`
-      : null;
+        ? "El límite debe ser un número entero."
+        : limit < LIMIT_MIN
+          ? `El límite debe ser mayor o igual a ${LIMIT_MIN}.`
+          : null;
 
   const fechaInicialError =
     fechaInicial === ""
       ? "La fecha inicial es obligatoria."
       : !isValidDate(fechaInicial)
-      ? `Fecha inválida. Usa un año entre ${DATE_MIN.slice(0, 4)} y ${DATE_MAX.slice(0, 4)}.`
-      : null;
+        ? `Fecha inválida. Usa un año entre ${DATE_MIN.slice(0, 4)} y ${DATE_MAX.slice(0, 4)}.`
+        : null;
 
   const fechaFinalError =
     fechaFinal === ""
       ? "La fecha final es obligatoria."
       : !isValidDate(fechaFinal)
-      ? `Fecha inválida. Usa un año entre ${DATE_MIN.slice(0, 4)} y ${DATE_MAX.slice(0, 4)}.`
-      : null;
+        ? `Fecha inválida. Usa un año entre ${DATE_MIN.slice(0, 4)} y ${DATE_MAX.slice(0, 4)}.`
+        : null;
 
   const rangeError =
     !fechaInicialError && !fechaFinalError && fechaInicial > fechaFinal
@@ -76,11 +76,14 @@ export function NewExtraction() {
     <div className="max-w-xl">
       <h2 className="text-xl font-semibold mb-1">Nueva extracción</h2>
       <p className="text-sm text-gray-600 mb-6">
-        El bot se conecta al portal Hiruko, aplica los filtros del convenio y
-        extrae las órdenes en el rango indicado.
+        El bot se conecta al portal Hiruko, aplica los filtros del convenio y extrae las órdenes en
+        el rango indicado.
       </p>
 
-      <form onSubmit={onSubmit} className="bg-white border border-gray-200 rounded-lg p-6 space-y-4 shadow-sm">
+      <form
+        onSubmit={onSubmit}
+        className="bg-white border border-gray-200 rounded-lg p-6 space-y-4 shadow-sm"
+      >
         <div>
           <label className="block text-sm font-medium mb-1">Fecha inicial</label>
           <input
@@ -92,7 +95,9 @@ export function NewExtraction() {
             onChange={(e) => setFechaInicial(e.target.value)}
             className="w-full rounded border-gray-300 border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand"
           />
-          {fechaInicialError && <p className="text-sm text-status-error mt-1">{fechaInicialError}</p>}
+          {fechaInicialError && (
+            <p className="text-sm text-status-error mt-1">{fechaInicialError}</p>
+          )}
         </div>
 
         <div>
@@ -123,9 +128,7 @@ export function NewExtraction() {
             }}
             className="w-full rounded border-gray-300 border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand"
           />
-          <p className="text-xs text-gray-500 mt-1">
-            Mínimo {LIMIT_MIN}. Sin tope superior.
-          </p>
+          <p className="text-xs text-gray-500 mt-1">Mínimo {LIMIT_MIN}. Sin tope superior.</p>
           {limitError && <p className="text-sm text-status-error mt-1">{limitError}</p>}
         </div>
 

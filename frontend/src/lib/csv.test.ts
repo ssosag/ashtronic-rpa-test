@@ -19,7 +19,7 @@ describe("recordsToCsv", () => {
   it("writes the expected header row", () => {
     const csv = recordsToCsv([]);
     expect(csv.split("\n")[0]).toBe(
-      "id,job_id,no_orden,documento,nombres,fecha_cita,sede,contrato,captured_at",
+      "id,job_id,no_orden,documento,nombres,fecha_cita,sede,contrato,captured_at"
     );
   });
 
@@ -27,7 +27,7 @@ describe("recordsToCsv", () => {
     const csv = recordsToCsv([baseRow]);
     const lines = csv.split("\n");
     expect(lines[1]).toBe(
-      "1,10,A-1,111,Ana Pérez,2026-03-02 07:30:00,Bogotá,Plan Básico,2026-04-17T10:00:00Z",
+      "1,10,A-1,111,Ana Pérez,2026-03-02 07:30:00,Bogotá,Plan Básico,2026-04-17T10:00:00Z"
     );
   });
 

@@ -39,7 +39,5 @@ export default function App() {
 }
 
 function navClass({ isActive }: { isActive: boolean }): string {
-  return isActive
-    ? "text-brand font-medium"
-    : "text-gray-600 hover:text-gray-900";
+  return isActive ? "text-brand font-medium" : "text-gray-600 hover:text-gray-900";
 }

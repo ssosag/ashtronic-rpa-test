@@ -98,8 +98,12 @@ export function JobDetail() {
       {job && (
         <div className="bg-white border border-gray-200 rounded-lg p-5 mb-6 shadow-sm">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <Field label="Estado"><StatusBadge status={job.status} /></Field>
-            <Field label="Rango">{job.fecha_inicial} → {job.fecha_final}</Field>
+            <Field label="Estado">
+              <StatusBadge status={job.status} />
+            </Field>
+            <Field label="Rango">
+              {job.fecha_inicial} → {job.fecha_final}
+            </Field>
             <Field label="Límite">{job.limit}</Field>
             <Field label="Registros">{job.records_count}</Field>
             <Field label="Creado">{fmt(job.created_at)}</Field>
@@ -117,9 +121,24 @@ export function JobDetail() {
       {canLoad && (
         <>
           <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-3">
-            <FilterInput label="Documento" value={filterDoc} onChange={setFilterDoc} placeholder="Ej: 25232067" />
-            <FilterInput label="Nombre" value={filterName} onChange={setFilterName} placeholder="Ej: OROZCO" />
-            <FilterInput label="Sede" value={filterSede} onChange={setFilterSede} placeholder="Ej: La Mujer" />
+            <FilterInput
+              label="Documento"
+              value={filterDoc}
+              onChange={setFilterDoc}
+              placeholder="Ej: 25232067"
+            />
+            <FilterInput
+              label="Nombre"
+              value={filterName}
+              onChange={setFilterName}
+              placeholder="Ej: OROZCO"
+            />
+            <FilterInput
+              label="Sede"
+              value={filterSede}
+              onChange={setFilterSede}
+              placeholder="Ej: La Mujer"
+            />
           </div>
 
           {recordsError && <p className="text-sm text-status-error mb-3">{recordsError}</p>}

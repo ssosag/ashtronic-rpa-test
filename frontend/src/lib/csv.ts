@@ -21,9 +21,7 @@ function escapeCell(value: unknown): string {
 
 export function recordsToCsv(rows: RecordRow[]): string {
   const head = HEADERS.map((h) => h.label).join(",");
-  const body = rows
-    .map((r) => HEADERS.map((h) => escapeCell(r[h.key])).join(","))
-    .join("\n");
+  const body = rows.map((r) => HEADERS.map((h) => escapeCell(r[h.key])).join(",")).join("\n");
   return `${head}\n${body}`;
 }
 

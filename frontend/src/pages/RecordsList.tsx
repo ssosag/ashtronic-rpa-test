@@ -77,10 +77,31 @@ export function RecordsList() {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4 shadow-sm grid grid-cols-1 md:grid-cols-4 gap-3">
-        <FilterInput label="Job ID" value={jobIdFilter} onChange={setJobIdFilter} placeholder="Ej: 1" type="number" />
-        <FilterInput label="Documento" value={docFilter} onChange={setDocFilter} placeholder="Ej: 25232067" />
-        <FilterInput label="Nombre" value={nameFilter} onChange={setNameFilter} placeholder="Ej: OROZCO" />
-        <FilterInput label="Sede" value={sedeFilter} onChange={setSedeFilter} placeholder="Ej: La Mujer" />
+        <FilterInput
+          label="Job ID"
+          value={jobIdFilter}
+          onChange={setJobIdFilter}
+          placeholder="Ej: 1"
+          type="number"
+        />
+        <FilterInput
+          label="Documento"
+          value={docFilter}
+          onChange={setDocFilter}
+          placeholder="Ej: 25232067"
+        />
+        <FilterInput
+          label="Nombre"
+          value={nameFilter}
+          onChange={setNameFilter}
+          placeholder="Ej: OROZCO"
+        />
+        <FilterInput
+          label="Sede"
+          value={sedeFilter}
+          onChange={setSedeFilter}
+          placeholder="Ej: La Mujer"
+        />
       </div>
 
       {error && <p className="text-sm text-status-error mb-3">{error}</p>}
@@ -108,7 +129,10 @@ export function RecordsList() {
                 {records.map((r) => (
                   <tr key={r.id} className="hover:bg-gray-50">
                     <Td>
-                      <Link to={`/jobs/${r.job_id}`} className="text-brand hover:underline font-mono">
+                      <Link
+                        to={`/jobs/${r.job_id}`}
+                        className="text-brand hover:underline font-mono"
+                      >
                         #{r.job_id}
                       </Link>
                     </Td>

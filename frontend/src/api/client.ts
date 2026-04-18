@@ -10,7 +10,10 @@ import type {
 const BASE = "/api/v1";
 
 class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string
+  ) {
     super(message);
   }
 }
@@ -77,14 +80,10 @@ export const api = {
   listJobs: (skip = 0, limit = 50, signal?: AbortSignal) =>
     request<Job[]>(`/jobs${qs({ skip, limit })}`, { signal }),
 
-  getJob: (id: number, signal?: AbortSignal) =>
-    request<Job>(`/jobs/${id}`, { signal }),
+  getJob: (id: number, signal?: AbortSignal) => request<Job>(`/jobs/${id}`, { signal }),
 
   listRecords: (filters: RecordFilters = {}, signal?: AbortSignal) =>
-    request<RecordRow[]>(
-      `/records${qs({ ...filters, limit: filters.limit ?? 100 })}`,
-      { signal }
-    ),
+    request<RecordRow[]>(`/records${qs({ ...filters, limit: filters.limit ?? 100 })}`, { signal }),
 
   getRecord: (id: number, signal?: AbortSignal) =>
     request<RecordDetail>(`/records/${id}`, { signal }),

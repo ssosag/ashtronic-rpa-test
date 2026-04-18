@@ -66,17 +66,18 @@ export function JobsList() {
               {jobs.map((j) => (
                 <tr key={j.id} className="hover:bg-gray-50">
                   <Td className="font-mono">{j.id}</Td>
-                  <Td><StatusBadge status={j.status} /></Td>
-                  <Td>{j.fecha_inicial} → {j.fecha_final}</Td>
+                  <Td>
+                    <StatusBadge status={j.status} />
+                  </Td>
+                  <Td>
+                    {j.fecha_inicial} → {j.fecha_final}
+                  </Td>
                   <Td className="text-right">{j.limit}</Td>
                   <Td className="text-right">{j.records_count}</Td>
                   <Td>{fmt(j.created_at)}</Td>
                   <Td>{j.finished_at ? fmt(j.finished_at) : "—"}</Td>
                   <Td>
-                    <Link
-                      to={`/jobs/${j.id}`}
-                      className="text-brand hover:underline"
-                    >
+                    <Link to={`/jobs/${j.id}`} className="text-brand hover:underline">
                       Ver
                     </Link>
                   </Td>
@@ -91,9 +92,7 @@ export function JobsList() {
 }
 
 function Th({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
-  return (
-    <th className={`px-4 py-2 text-left font-medium ${className}`}>{children}</th>
-  );
+  return <th className={`px-4 py-2 text-left font-medium ${className}`}>{children}</th>;
 }
 
 function Td({ children, className = "" }: { children?: React.ReactNode; className?: string }) {
