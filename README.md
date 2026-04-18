@@ -162,17 +162,28 @@ Respuesta `202`:
 Cuatro rutas principales (React Router):
 
 1. **Nueva extracción** (`/`) — formulario con validación: fechas entre 2000 y 2100, `limit` entero positivo (sin tope superior). Al enviar, navega al detalle del job creado.
+
+<img width="1914" height="899" alt="image" src="https://github.com/user-attachments/assets/7903cb33-6384-4801-9e3c-ef799bf44875" />
+
 2. **Jobs** (`/jobs`) — tabla con estado, fechas, `limit`, `records_count`. Click en una fila abre el detalle.
+<img width="1895" height="834" alt="image" src="https://github.com/user-attachments/assets/2d1f4ff6-13c5-453a-b9e6-3c727f8c086d" />
+
 3. **Detalle de Job** (`/jobs/:id`) — polling cada 2s mientras el estado sea `queued`/`running`. Muestra los registros asociados con paginación (10/25/50/100) y botón **Descargar CSV** (página actual). Si el job terminó en `error`, muestra `error_message`.
+<img width="1896" height="903" alt="image" src="https://github.com/user-attachments/assets/6998878b-1581-4c27-a018-687ebc10f320" />
+
 4. **Records** (`/records`) — tabla global con filtros por `patient_document`, `patient_name` y `sede`. Misma paginación + CSV.
 
-Paleta Tailwind: `brand` (primario `#2563eb`) + `status-{done,running,queued,error}` para los badges.
+<img width="1901" height="901" alt="image" src="https://github.com/user-attachments/assets/66514e86-507c-4d8d-a36c-a932a5c862b5" />
+
 
 ## 9. Flujo general del sistema
 
 1. Usuario envía el formulario → `POST /api/v1/rpa/extract`.
 2. `job_service.create_job` inserta un `Job(status="queued")`; la API responde `202` con `job_id` y encola una `BackgroundTask` (`rpa_runner.run(job_id)`).
 3. `rpa_runner` abre su propia sesión async, marca el job como `running`, instancia un WebDriver remoto contra `SELENIUM_HUB_URL` y ejecuta los pasos en orden: `login → navigate → filters → extract`.
+<img width="1913" height="818" alt="image" src="https://github.com/user-attachments/assets/7419a8e8-320d-47d5-9567-b3639acafb16" />
+
+
 4. `extract_rows` hace click en **Buscar**, espera a que desaparezca el overlay `blockUI`, espera la presencia del `tbody` (la tabla se renderiza dinámicamente tras el primer click) y lee las filas hasta `min(limit, filas_disponibles)`.
 5. Las filas se insertan en una única transacción (`async with db.begin()`) junto con el `UPDATE Job SET status='done'`. En error: `logger.exception` captura el traceback, `mark_error` deja el job en `error` con `error_message` + screenshot en `artifacts/screenshots/`.
 6. El frontend hace polling de `/jobs/:id` hasta que `status ∈ {done, error}`. El polling se cancela con `AbortController` al desmontar o cambiar de job.
