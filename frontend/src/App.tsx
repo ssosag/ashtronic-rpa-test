@@ -6,7 +6,7 @@ import { RecordsList } from "./pages/RecordsList";
 
 export default function App() {
   return (
-    <div className="min-h-full flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center gap-8">
           <h1 className="text-lg font-semibold text-brand">Ashtronic RPA</h1>
@@ -24,8 +24,8 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1">
-        <div className="max-w-6xl mx-auto px-4 py-8">
+      <main className="flex-1 flex items-center justify-center">
+        <div className="w-full max-w-6xl px-4 py-8">
           <Routes>
             <Route path="/" element={<NewExtraction />} />
             <Route path="/jobs" element={<JobsList />} />
