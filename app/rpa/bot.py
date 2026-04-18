@@ -36,12 +36,27 @@ _TRANSIENT_EXCEPTIONS: tuple[type[BaseException], ...] = (
 )
 
 
-def run(job_id: int, fecha_inicial: date, fecha_final: date, limit: int) -> list[dict]:
+def run(
+    job_id: int,
+    fecha_inicial: date,
+    fecha_final: date,
+    limit: int,
+    stats: Optional[dict] = None,
+) -> list[dict]:
     """Run the full extraction pipeline. Returns a list of record dicts.
-    Raises BotError on failure (after attempting to save a screenshot)."""
+    Raises BotError on failure (after attempting to save a screenshot).
+
+    If `stats` is provided, it is mutated with `retries` (int) — the number of
+    transient retries that occurred across all retried steps. The caller reads
+    this after `run()` returns OR raises, to persist it on the Job row.
+    """
     settings = get_settings()
     attempts = settings.bot_retry_attempts
     backoff = settings.bot_retry_backoff_seconds
+
+    def _bump_retries() -> None:
+        if stats is not None:
+            stats["retries"] = stats.get("retries", 0) + 1
 
     driver: Optional[WebDriver] = None
     logger.info(f"job_id={job_id} bot=start")
@@ -54,6 +69,7 @@ def run(job_id: int, fecha_inicial: date, fecha_final: date, limit: int) -> list
             backoff_seconds=backoff,
             retry_on=_TRANSIENT_EXCEPTIONS,
             step="login",
+            on_retry=_bump_retries,
         )
 
         navigate_step.navigate_to_generate_invoice(driver)
@@ -65,6 +81,7 @@ def run(job_id: int, fecha_inicial: date, fecha_final: date, limit: int) -> list
             backoff_seconds=backoff,
             retry_on=_TRANSIENT_EXCEPTIONS,
             step="extract",
+            on_retry=_bump_retries,
         )
 
         logger.info(f"job_id={job_id} bot=done rows={len(rows)}")

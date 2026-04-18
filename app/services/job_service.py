@@ -61,6 +61,14 @@ async def mark_error(db: AsyncSession, job_id: int, error_message: str) -> None:
     logger.info(f"job_id={job_id} status=error")
 
 
+async def set_retries_count(db: AsyncSession, job_id: int, retries: int) -> None:
+    if retries <= 0:
+        return
+    await db.execute(update(Job).where(Job.id == job_id).values(retries_count=retries))
+    await db.commit()
+    logger.info(f"job_id={job_id} retries_count={retries}")
+
+
 async def recover_orphan_jobs(db: AsyncSession) -> int:
     """Mark as 'error' any jobs left in a non-terminal state by a previous run.
 

@@ -106,6 +106,18 @@ export function JobDetail() {
             </Field>
             <Field label="Límite">{job.limit}</Field>
             <Field label="Registros">{job.records_count}</Field>
+            <Field label="Reintentos">
+              {job.retries_count > 0 ? (
+                <span
+                  title="El bot tuvo que reintentar uno o más pasos (timeouts, overlays, webdriver)."
+                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800"
+                >
+                  {job.retries_count}
+                </span>
+              ) : (
+                <span className="text-gray-500">0</span>
+              )}
+            </Field>
             <Field label="Creado">{fmt(job.created_at)}</Field>
             <Field label="Iniciado">{job.started_at ? fmt(job.started_at) : "—"}</Field>
             <Field label="Finalizado">{job.finished_at ? fmt(job.finished_at) : "—"}</Field>

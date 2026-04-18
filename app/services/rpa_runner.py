@@ -35,18 +35,23 @@ async def run(job_id: int) -> None:
         logger.info(f"job_id={job_id} step=start")
         await job_service.mark_running(db, job_id)
 
+        stats: dict = {"retries": 0}
         try:
             rows = await asyncio.to_thread(
-                bot.run, job_id, fecha_inicial, fecha_final, limit
+                bot.run, job_id, fecha_inicial, fecha_final, limit, stats
             )
         except BotError as exc:
             logger.error(f"job_id={job_id} step={exc.step} error={exc.message}")
+            await job_service.set_retries_count(db, job_id, stats.get("retries", 0))
             await job_service.mark_error(db, job_id, str(exc))
             return
         except Exception as exc:
             logger.exception(f"job_id={job_id} step=unexpected error={exc}")
+            await job_service.set_retries_count(db, job_id, stats.get("retries", 0))
             await job_service.mark_error(db, job_id, str(exc))
             return
+
+        await job_service.set_retries_count(db, job_id, stats.get("retries", 0))
 
         # Atomic: all records + job status transition succeed or fail together.
         try:

@@ -22,6 +22,7 @@ class JobOut(BaseModel):
     started_at: Optional[datetime]
     finished_at: Optional[datetime]
     records_count: int
+    retries_count: int = 0
     error_message: Optional[str]
     created_at: datetime
 

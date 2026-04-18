@@ -57,6 +57,7 @@ export function JobsList() {
                 <Th>Rango</Th>
                 <Th className="text-right">Límite</Th>
                 <Th className="text-right">Registros</Th>
+                <Th className="text-right">Reintentos</Th>
                 <Th>Creado</Th>
                 <Th>Finalizado</Th>
                 <Th></Th>
@@ -74,6 +75,18 @@ export function JobsList() {
                   </Td>
                   <Td className="text-right">{j.limit}</Td>
                   <Td className="text-right">{j.records_count}</Td>
+                  <Td className="text-right">
+                    {j.retries_count > 0 ? (
+                      <span
+                        title="El bot reintentó uno o más pasos."
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800"
+                      >
+                        {j.retries_count}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">0</span>
+                    )}
+                  </Td>
                   <Td>{fmt(j.created_at)}</Td>
                   <Td>{j.finished_at ? fmt(j.finished_at) : "—"}</Td>
                   <Td>

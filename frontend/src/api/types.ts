@@ -9,6 +9,7 @@ export interface Job {
   started_at: string | null;
   finished_at: string | null;
   records_count: number;
+  retries_count: number;
   error_message: string | null;
   created_at: string;
 }

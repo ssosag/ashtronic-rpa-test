@@ -17,6 +17,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException, WebDriverException, NoSuchElementException
+from app.core.config import get_settings
 from app.rpa import waits
 from app.rpa.errors import ExtractError
 from app.rpa.steps.filters import CONVENIO_LABEL
@@ -88,16 +89,29 @@ def _extract_row(row: WebElement, headers: list[str]) -> dict:
 
 
 def extract_rows(driver: WebDriver, limit: int) -> list[dict]:
-    """Click 'Buscar', wait for the table to refresh, and extract up to `limit` rows."""
-    try:
-        logger.info("step=extract action=click_buscar")
-        driver.find_element(By.ID, SEARCH_BUTTON_ID).click()
+    """Click 'Buscar', wait for the table to refresh, and extract up to `limit` rows.
 
-        logger.info("step=extract action=wait_overlay_gone")
+    Large date ranges can keep the `blockUI` overlay up for a long time. We:
+    1. Wait for any lingering overlay BEFORE clicking — otherwise the click is
+       intercepted by an overlay left by the filters step (or by a previous retry).
+    2. Use a generous timeout after the click, proportional to the range.
+    """
+    try:
+        logger.info("step=extract action=wait_overlay_before_click")
         waits.wait_overlay_gone(driver)
 
+        logger.info("step=extract action=click_buscar")
+        waits.wait_clickable(driver, By.ID, SEARCH_BUTTON_ID).click()
+
+        # Portal can take a long time for wide date ranges — give the overlay
+        # extra room before declaring a timeout.
+        long_timeout = max(get_settings().selenium_timeout * 3, 90)
+
+        logger.info(f"step=extract action=wait_overlay_gone timeout={long_timeout}s")
+        waits.wait_overlay_gone(driver, timeout=long_timeout)
+
         logger.info("step=extract action=wait_table_rendered")
-        waits.wait_present(driver, By.CSS_SELECTOR, TBODY_SELECTOR)
+        waits.wait_present(driver, By.CSS_SELECTOR, TBODY_SELECTOR, timeout=long_timeout)
 
         info = _read_info_text_safe(driver)
         if info:

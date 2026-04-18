@@ -254,3 +254,4 @@ El análisis técnico requerido por el enunciado (por qué esta arquitectura, ve
 
 - [`docs/DECISIONES_TECNICAS.md`](./docs/DECISIONES_TECNICAS.md) — decisiones técnicas + análisis técnico obligatorio.
 - [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — descripción de servicios, modelo de datos, flujo del bot y secuencia de la extracción.
+- [`docs/OPERACION.md`](./docs/OPERACION.md) — comandos útiles (logs, ver reintentos, DB, screenshots, curl).
